@@ -1,0 +1,47 @@
+[project]
+name = "conjunction-screening"
+version = "0.1.0"
+description = "Conjunction filtering and probability of collision using the Foster and Alfano methods."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Emre Yilmaz" }]
+keywords = ["space-debris", "conjunction-analysis", "collision-probability", "python"]
+dependencies = ["numpy>=2.0", "scipy>=1.14", "matplotlib>=3.9"]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8", "mypy>=1.13"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "ruff>=0.8", "mypy>=1.13"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/conjunction_screening"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: excluded from the default run"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/conjunction_screening"]
+
+# scipy publishes no type information, and scipy-stubs is a separate distribution
+# that the dependency list does not include. The functions used from it are
+# quadrature, root finding, scalar minimisation, and two special functions, all
+# with well-known signatures wrapped at the call site.
+[[tool.mypy.overrides]]
+module = ["scipy.*"]
+ignore_missing_imports = true
