@@ -30,6 +30,7 @@ from conjunction_screening.model.covariance import (
     covariance_from_element_sigmas,
 )
 from conjunction_screening.model.frames import rotate_covariance_to_ric
+from conjunction_screening.model.hardbody import HardBody
 from conjunction_screening.model.state import (
     KeplerianElements,
     OrbitState,
@@ -58,16 +59,22 @@ class CatalogObject:
     Attributes:
         object_id: Identifier used in reports.
         state: Inertial state at the screening epoch.
-        radius_m: Hard body radius, in m.
+        radius_m: Hard body radius, in m. When ``shape`` is set this is the
+            radius of the sphere of the same volume, kept because every report
+            prints one number for size.
         covariance_ric: 6 by 6 state covariance in the RIC frame of ``state``,
             with position in m^2 and velocity in m^2/s^2, as a conjunction data
             message quotes it.
+        shape: Hard body geometry. None means the sphere of ``radius_m``, which
+            is what the synthetic catalogue generates and what a screening
+            catalogue normally carries.
     """
 
     object_id: str
     state: OrbitState
     radius_m: float
     covariance_ric: Covariance
+    shape: HardBody | None = None
 
     def __post_init__(self) -> None:
         if not self.radius_m > 0.0:
@@ -79,6 +86,11 @@ class CatalogObject:
     def elements(self) -> KeplerianElements:
         """Classical elements of this object at the screening epoch."""
         return elements_from_state(self.state)
+
+    @property
+    def hard_body(self) -> HardBody:
+        """The hard body geometry, defaulting to the sphere of ``radius_m``."""
+        return self.shape if self.shape is not None else HardBody.sphere(self.radius_m)
 
 
 @dataclass(frozen=True, slots=True)

@@ -251,6 +251,44 @@ def test_principal_axis_form_preserves_miss_and_determinant(orientation: float) 
     assert form.sigma_y_m == pytest.approx(180.0, rel=1e-12)
 
 
+def test_the_normalised_miss_distance_is_the_miss_in_standard_deviations() -> None:
+    """The quantity the probability actually depends on, checked against three known cases.
+
+    A circular covariance gives the miss distance divided by the one standard
+    deviation it has. An elongated one gives it divided by whichever principal
+    standard deviation the miss vector happens to lie along, which is why two
+    events at the same distance in metres can be far apart in this measure.
+    """
+    circular = planar_encounter(
+        miss_distance_m=300.0, sigma_x_m=250.0, sigma_y_m=250.0, hard_body_radius_m=10.0
+    )
+    assert principal_axis_form(circular).normalised_miss_distance == pytest.approx(
+        300.0 / 250.0, rel=1e-12
+    )
+
+    along = planar_encounter(
+        miss_distance_m=300.0,
+        sigma_x_m=2_000.0,
+        sigma_y_m=50.0,
+        hard_body_radius_m=10.0,
+        orientation_rad=0.0,
+    )
+    assert principal_axis_form(along).normalised_miss_distance == pytest.approx(
+        300.0 / 2_000.0, rel=1e-12
+    )
+
+    across = planar_encounter(
+        miss_distance_m=300.0,
+        sigma_x_m=2_000.0,
+        sigma_y_m=50.0,
+        hard_body_radius_m=10.0,
+        orientation_rad=0.5 * float(np.pi),
+    )
+    assert principal_axis_form(across).normalised_miss_distance == pytest.approx(
+        300.0 / 50.0, rel=1e-12
+    )
+
+
 def test_planar_encounter_reports_the_requested_geometry() -> None:
     """The constructor round trips through the encounter representation."""
     encounter = planar_encounter(

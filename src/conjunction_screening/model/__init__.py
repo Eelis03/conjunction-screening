@@ -30,6 +30,12 @@ from conjunction_screening.model.frames import (
     rotate_covariance_to_inertial,
     rotate_covariance_to_ric,
 )
+from conjunction_screening.model.hardbody import (
+    CrossSection,
+    HardBody,
+    combine_hard_bodies,
+    projected_cross_section,
+)
 from conjunction_screening.model.state import (
     KeplerianElements,
     OrbitState,
@@ -46,8 +52,10 @@ __all__ = [
     "J2_EARTH",
     "MU_EARTH",
     "Covariance",
+    "CrossSection",
     "ElementSigmas",
     "EncounterGeometry",
+    "HardBody",
     "KeplerianElements",
     "Matrix",
     "OrbitState",
@@ -57,6 +65,7 @@ __all__ = [
     "as_vector",
     "block_diagonal_rotation",
     "combine_covariances",
+    "combine_hard_bodies",
     "covariance_from_element_sigmas",
     "element_state_jacobian",
     "elements_from_state",
@@ -67,6 +76,7 @@ __all__ = [
     "planar_encounter",
     "principal_axis_form",
     "project_to_encounter_plane",
+    "projected_cross_section",
     "rotate_covariance_to_inertial",
     "rotate_covariance_to_ric",
     "smallest_eigenvalue",

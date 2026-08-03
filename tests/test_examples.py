@@ -5,6 +5,10 @@ the command line handling and the module level matplotlib backend selection as
 well as the code paths. Each runs with its reduced flag, which cuts the catalogue
 size and the Monte Carlo sample count so the whole tier stays inside a few
 seconds.
+
+Every script is also given an output directory under the temporary path, which
+matters most for the figure renderer: its default destination is the tracked
+docs/figures, and a test run must not rewrite files that are committed.
 """
 
 from __future__ import annotations
@@ -16,7 +20,12 @@ from pathlib import Path
 import pytest
 
 _EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
-_SCRIPTS = ("screen_catalog.py", "dilution_study.py", "method_comparison.py")
+_SCRIPTS = (
+    "screen_catalog.py",
+    "dilution_study.py",
+    "method_comparison.py",
+    "render_figures.py",
+)
 
 
 @pytest.mark.parametrize("script", _SCRIPTS)

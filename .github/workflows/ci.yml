@@ -29,8 +29,17 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
+      # The floor is the coverage measured on the recording machine, 95.75 per
+      # cent, rounded down and given two points of headroom. The figures the
+      # README embeds are not compared here: matplotlib output is not byte
+      # reproducible across platforms, so a byte comparison would fail on a font
+      # rendering difference and say nothing about the mathematics.
       - name: Run tests
-        run: uv run pytest -q
+        run: >
+          uv run pytest -q
+          --cov=src/conjunction_screening
+          --cov-report=term-missing
+          --cov-fail-under=93
 
       - name: Lint
         run: uv run ruff check .

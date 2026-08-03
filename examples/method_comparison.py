@@ -29,7 +29,7 @@ from conjunction_screening.analysis.comparison import (
     format_comparison_table,
     worst_pairwise_disagreement,
 )
-from conjunction_screening.analysis.figures import plot_method_comparison
+from conjunction_screening.analysis.figures import plot_method_agreement
 from conjunction_screening.model.encounter import EncounterGeometry, planar_encounter
 
 # miss distance, sigma x, sigma y, hard body radius, orientation in degrees
@@ -118,8 +118,8 @@ def main() -> None:
     print("A case is usable when it produced at least the method's minimum hit count;")
     print("below that the binomial estimate carries no useful precision.")
 
-    figure = plot_method_comparison(
-        comparisons, order, arguments.output / "method_comparison.png"
+    figure = plot_method_agreement(
+        comparisons, order, arguments.output / "method_agreement.png"
     )
     print()
     print(f"figure written  {figure}")

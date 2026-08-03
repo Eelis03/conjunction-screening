@@ -111,6 +111,12 @@ each term is one minus a partial sum of a Poisson series, which cancels catastro
 the ratio of hard body radius to covariance scale is small, and that ratio is small in every
 real conjunction.
 
+The region being integrated over is a disc only when both objects are spheres. A hard body may
+be given as an ellipsoid instead, in which case the region is the shadow it casts along the
+relative velocity and the polar quadrature takes a radial limit that varies with the angle.
+Foster and Monte Carlo accept that region; Alfano and Chan reject it, for reasons recorded
+under closed limitations below.
+
 The Monte Carlo estimator samples the three-dimensional relative position from the combined
 covariance and projects each draw onto the plane normal to the relative velocity, rather than
 sampling the two-dimensional plane distribution directly. Sampling the plane would test only
@@ -208,6 +214,79 @@ assessment, and implementing a second regime properly would have doubled the wor
 adding to what the project is demonstrating. The conditions under which the implemented
 formulation fails are stated below rather than hidden.
 
+## Closed limitations
+
+### The hard body model was a sphere
+
+The entry that used to stand here said that both objects were treated as spheres with a single
+combined radius, that this is the standard screening assumption and conservative for compact
+objects, and that it is poor for a large object with deployed structures, where the effective
+cross section depends on the approach direction. It has been removed because the library no
+longer requires it.
+
+What replaced it. A hard body is now a convex body carried as an ellipsoid, written as the
+shape matrix `S` of `{x : x^T S^-1 x <= 1}`, in `model/hardbody.py`. A sphere of radius `R` is
+`S = R^2 I`, so the sphere is the special case rather than a separate path. Three steps take
+that to a probability.
+
+The two bodies are combined first, because the collision condition involves their Minkowski
+sum: the relative position vector has to clear both. The sum of two ellipsoids is not an
+ellipsoid, so the standard external ellipsoidal approximation is used, the family
+`S(p) = (1 + 1/p) S1 + (1 + p) S2` for `p > 0`, from Kurzhanski and Valyi, "Ellipsoidal
+Calculus for Estimation and Control", Birkhauser 1997. Every member of that family contains
+the sum, which follows from the support functions: with `a = sqrt(l^T S1 l)` and
+`b = sqrt(l^T S2 l)`, the gap between the squared supports is `(a / sqrt(p) - b sqrt(p))^2`,
+which is non-negative and vanishes at `p = a / b`. Since no single `p` is tight in every
+direction, `p` is chosen to minimise the trace. For two spheres that choice is `R1 / R2`, at
+which the result is exactly the sphere of radius `R1 + R2`, so the combined radius convention
+is recovered rather than approximated.
+
+The combined body is then projected onto the encounter plane. Writing the ellipsoid as
+`{L u : |u| <= 1}` with `S = L L^T`, its image under the 2 by 3 projection `B` is
+`{B L u : |u| <= 1}`, an ellipse of shape matrix `B S B^T`, which is the same congruence the
+covariance goes through. The projection is along the plane normal, which is the relative
+velocity, so this is the outline the secondary actually sees, and it changes with the
+direction of approach. That is the whole content of the limitation.
+
+The probability integral then runs over that ellipse. Foster's polar quadrature needs one
+change: the upper limit of the radial integral becomes `R(theta)`, and the angle moves from
+the inner to the outer variable. Monte Carlo needs one change: the hit test becomes a
+quadratic form in the plane rather than a distance in three dimensions.
+
+What it cost. Four things, none of them hidden.
+
+Alfano and Chan no longer apply. Alfano integrates across the chord of a circle and Chan
+expands a non-central chi-square tail about a circular region; in both derivations the circle
+enters before the density does, so neither extends by changing a limit. They raise on a
+non-circular cross section rather than substituting a disc of the same area, because a
+silently substituted disc would produce a number that looks like a cross check of the Foster
+result and is not one. The consequence is that the strongest validation available, two
+independent quadratures agreeing to 4.3e-16, exists only for spheres. For a non-spherical body
+the cross check is Foster against Monte Carlo, which is four binomial standard errors wide
+rather than at machine precision.
+
+The combined body is an outer approximation, so the probability it produces is an
+overestimate. The size of that is measured rather than asserted: for a 30 m by 3 m by 3 m body
+combined with a 3 m sphere, the approximation is within 1.2 percent of the exact Minkowski sum
+along the long axis and 41 percent too wide across it. Overstating the body overstates the
+probability, which is the safe direction, but a caller reading a probability for a long thin
+object should know it carries that margin. A tighter answer would need a body that is not an
+ellipsoid, and with it a quadrature over a region with corners.
+
+An ellipsoid is convex and smooth, so a genuinely concave shape, a dish or a boom with a gap,
+is bounded rather than represented. This is a better model of a satellite than a sphere and it
+is still not the satellite.
+
+The quadrature is slower for a non-circular outline, because the radial limit is evaluated at
+every angle the adaptive rule visits rather than being a constant.
+
+What remains. Nothing in the pipeline sets a shape by itself: the synthetic catalogue
+generates spheres, every pinned number in the repository is a sphere result, and a caller who
+wants a shaped object has to supply the ellipsoid and its orientation. The library also has no
+attitude model, so the orientation is whatever the caller passes at the screening epoch and
+does not evolve over the window. For a slowly tumbling object that is another approximation on
+top of this one.
+
 ## Known limitations
 
 ### The two-dimensional formulation assumes a short linear encounter
@@ -244,13 +323,6 @@ combined relative covariance is the sum of the two individual covariances, which
 two solutions are uncorrelated. Two objects tracked by the same sensor network share
 atmospheric density model error and station bias, so their errors are correlated in practice,
 and neglecting that biases the combined covariance.
-
-### The hard body model is a sphere
-
-Both objects are treated as spheres and the collision condition is a single combined radius.
-That is the standard screening assumption and it is conservative for compact objects, but it
-is poor for a large object with deployed structures, where the effective cross section depends
-on the approach direction.
 
 ### Probability of collision is a decision input, not a decision
 

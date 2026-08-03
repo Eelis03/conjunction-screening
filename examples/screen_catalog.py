@@ -11,10 +11,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from conjunction_screening.analysis.figures import plot_screening_ranking
+from conjunction_screening.analysis.figures import plot_screening_scatter
 from conjunction_screening.analysis.ranking import (
     ActionClass,
     ActionThresholds,
+    format_covariance_table,
     format_ranking_table,
     rank_report,
 )
@@ -75,14 +76,17 @@ def main() -> None:
     print("ranked conjunctions")
     print(format_ranking_table(ranked, limit=15))
     print()
+    print("covariance geometry, the miss distance in metres and in standard deviations")
+    print(format_covariance_table(ranked))
+    print()
     counts = {action.value: 0 for action in ActionClass}
     for item in ranked:
         counts[item.action.value] += 1
     print("action counts   " + ", ".join(f"{key} {value}" for key, value in counts.items()))
 
     if ranked:
-        figure = plot_screening_ranking(
-            ranked, thresholds, arguments.output / "screening_ranking.png"
+        figure = plot_screening_scatter(
+            ranked, thresholds, arguments.output / "screening_scatter.png"
         )
         print(f"figure written  {figure}")
 

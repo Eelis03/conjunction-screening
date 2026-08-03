@@ -31,6 +31,7 @@ from conjunction_screening.analysis.comparison import (
 from conjunction_screening.analysis.ranking import (
     ActionClass,
     ActionThresholds,
+    format_covariance_table,
     format_ranking_table,
     rank_events,
     rank_report,
@@ -271,6 +272,37 @@ def test_ranking_is_rendered_as_a_table(regression_report: ScreeningReport) -> N
     assert "action" in text
     assert "further event(s) not shown" in text
     assert rank_events(regression_report.events) == ranked
+
+
+def test_the_covariance_table_reports_every_event(regression_report: ScreeningReport) -> None:
+    """The second table carries the geometry that explains the first one."""
+    ranked = rank_report(regression_report)
+    text = format_covariance_table(ranked)
+    assert "miss / sigma" in text
+    assert "sigma_x [m]" in text
+    for item in ranked:
+        assert item.object_id in text
+    assert len(text.splitlines()) == len(ranked) + 2
+
+
+def test_metres_and_standard_deviations_disagree_about_the_ordering(
+    regression_report: ScreeningReport,
+) -> None:
+    """The recorded run contains a pair that ranks one way in metres and the other in risk.
+
+    Ranks five and six of this run are the case the README shows: the closer
+    conjunction carries the smaller probability. The reason is in the covariance
+    rather than in the distance, and it is pinned here so that the claim cannot
+    quietly stop being true. In the units the probability is computed in the
+    closer event is the more distant of the two, because its combined covariance
+    is far tighter across the miss direction.
+    """
+    ranked = rank_report(regression_report)
+    further, closer = ranked[4], ranked[5]
+    assert closer.probability < further.probability
+    assert closer.miss_distance_m < further.miss_distance_m
+    assert closer.normalised_miss_distance > further.normalised_miss_distance
+    assert closer.sigma_y_m < further.sigma_y_m
 
 
 def test_method_comparison_tabulates_every_method() -> None:

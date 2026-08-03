@@ -1,89 +1,38 @@
 # Conjunction Screening
 
-Conjunction filtering and probability of collision using the Foster and Alfano methods.
+Filtering a catalogue down to the conjunctions that can matter, and computing the probability
+of collision for each of them by two independent formulations that check each other.
 
 [![CI](https://github.com/Eelis03/conjunction-screening/actions/workflows/ci.yml/badge.svg)](https://github.com/Eelis03/conjunction-screening/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Overview
+![Probability of collision against covariance scale for a fixed 100 m miss distance, rising to a peak of 3.678810e-03 near scale 0.14 and then falling with a log slope of minus two, so that a wider covariance reports a smaller risk](docs/figures/dilution_curve.png)
 
-This library screens a catalogue of orbiting objects against a primary satellite and
-reports the probability of collision for every conjunction it finds. It applies the
-three-filter cascade of Hoots, Crawford, and Roehrich to discard pairs that cannot
-conjunct, refines the surviving pairs to a time of closest approach, propagates the
-position covariances to that time, and evaluates the two-dimensional probability of
-collision by the Foster method, the Alfano method, and Chan's series so that the three can
-be compared. It is written for anyone building or reviewing a conjunction assessment
-pipeline who needs the arithmetic to be checkable rather than taken on trust.
+## Dilution: a larger covariance can report a smaller probability
 
-## Problem
+The figure above is one encounter, swept over five decades of covariance scale. The miss
+distance is 100 m at every point on that curve, the combined hard body radius is 10 m at
+every point, and nothing moves except the size of the uncertainty. The probability rises,
+peaks at 3.678810e-03, and then falls away with a fitted log slope of -2.0000, which is the
+inverse square asymptote the small radius analysis predicts.
 
-A satellite operator receives a catalogue of tracked objects and has to decide, before each
-of them passes, whether to spend propellant avoiding it. Three things make that hard.
+Read the falling branch again, because it is the part that gets misused. At a covariance
+scale of 8.2540 the reported probability is 2.934733e-06. That is 66.79 times smaller than
+the 1.960205e-04 reported at the nominal covariance, and the two objects are exactly as far
+apart in both cases. The probability fell because the uncertainty grew.
 
-The first is cost. Screening one primary against a catalogue means examining every pair, and
-a full close approach search over a day of orbital motion is far too expensive to run on all
-of them. Filters are needed, and a filter that discards a real conjunction is worse than no
-filter at all, so each one has to come with an argument that it cannot.
+A screening system that treats a small probability as evidence of safety will therefore
+dismiss most confidently the objects it understands least. Distinguishing the two cases needs
+a second number, and this library reports it: the maximum probability reachable by scaling
+the covariance, and the ratio of that maximum to the reported value. Here the nominal
+covariance sits 18.77 times below its own peak. A dilution factor near one is evidence of
+safety. A large one is evidence that the object needs more tracking, not less attention.
 
-The second is that the quantity the decision rests on is a probability, not a distance. A
-miss distance of two kilometres is not safe if the covariance is ten kilometres wide, and a
-miss distance of two hundred metres is not dangerous if the covariance is ten metres wide.
-Computing the probability requires propagating the covariance of both objects to the time of
-closest approach, transforming it into the encounter plane, and integrating a bivariate
-Gaussian over a disc.
-
-The third is that the probability of collision behaves in a way that is easy to misread. It
-is not monotonic in the size of the covariance. Inflating the covariance raises the
-probability up to a point and lowers it after that, so an object that is poorly tracked can
-report a smaller probability than the same object tracked well. A screening system that
-treats a small probability as evidence of safety, without also asking how large the
-covariance was, will dismiss exactly the conjunctions it understands least.
-
-## Approach
-
-Filtering follows the published cascade of Hoots, Crawford, and Roehrich (1984), applied in
-their order and from cheapest to most expensive. The perigee and apogee filter compares the
-radial shells the two orbits occupy and rejects a pair when the gap between the shells
-exceeds the screening threshold, which is exact by the reverse triangle inequality. The
-orbit path filter bounds the minimum distance between the two orbit paths treated as static
-curves. The time filter maps the parts of each path that can produce a close approach into
-time intervals through Kepler's equation and rejects a pair whose intervals never coincide.
-
-The orbit path filter is where the conservativeness argument has to be made carefully. The
-separation between two points on the two paths is a Lipschitz function of the two true
-anomalies, with a constant that has a closed form, so a sampled separation can be turned
-into a rigorous lower bound over a whole cell of anomaly space. A branch and bound over
-those cells either finds a sample below the threshold, in which case the pair passes, or
-prunes every cell, in which case the pair is proved safe. Both budgets that stop the search
-early return a pass, so a budget exhaustion can never become a missed conjunction.
-
-Close approach determination refines a coarse sweep with Brent's method applied to the
-product of the relative position and the relative velocity, which vanishes at every extremum
-of the range and stays smooth through it. The coarse step is derived from the screening
-threshold and the relative speed rather than chosen, so no approach that reaches the
-threshold falls between two samples.
-
-Covariances are carried from the RIC frame at the catalogue epoch, into the inertial frame,
-forward with the state transition matrix of the two-body flow, and then into the encounter
-plane normal to the relative velocity. That last projection is what makes the
-two-dimensional formulation valid: under linear relative motion the secondary crosses the
-plane in a straight line, so a three-dimensional collision question becomes a
-two-dimensional one about a disc.
-
-The probability integral is evaluated three ways. Foster and Estes (1992) integrate in polar
-coordinates over the disc. Alfano (2005a) performs the inner integral analytically with the
-error function and applies Simpson's rule to the remainder. Chan (2008) sums a convergent
-series that is exact for a circular covariance and uses an equal-area circle otherwise.
-Foster and Alfano share nothing but the reduction to principal axes, so their agreement is a
-genuine cross validation. A Monte Carlo estimator that samples the three-dimensional
-relative position and counts straight-line passes inside the hard body radius checks the
-projection as well as the integral.
-
-The maximum probability over an isotropic scaling of the covariance follows Alfano (2005b),
-and is checked against the closed form for a circular covariance. docs/design-notes.md
-records the alternatives that were considered and not chosen.
+The peak itself is checkable. Alfano's closed form for a circular covariance gives
+`R^2 / (e d^2)` = 3.678794e-03 at a standard deviation of `d / sqrt(2)` = 70.7 m. The
+numerical search finds 3.678810e-03 at 70.5 m, agreeing to 4.3e-6 relative on the value and
+to 0.3 percent on the location.
 
 ## Installation
 
@@ -92,7 +41,7 @@ Requires Python 3.12 or later.
 ```bash
 git clone https://github.com/Eelis03/conjunction-screening.git
 cd conjunction-screening
-uv sync
+uv sync --all-extras --dev
 ```
 
 Using pip instead of uv:
@@ -103,7 +52,40 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-## Usage
+## From a catalogue to a probability
+
+Screening one primary against a catalogue means examining every pair, and a full close
+approach search over a day of orbital motion is far too expensive to run on all of them. The
+cascade of Hoots, Crawford, and Roehrich (1984) is applied in the published order, which is
+also cheapest first. The perigee and apogee filter compares the radial shells the two orbits
+occupy; it is exact, by the reverse triangle inequality. The orbit path filter bounds the
+minimum distance between the two paths treated as static curves, using a Lipschitz branch and
+bound whose constant has a closed form, so a sampled separation becomes a rigorous lower
+bound over a whole cell of anomaly space. The time filter maps the arcs that could produce a
+close approach into time intervals through Kepler's equation and rejects a pair whose
+intervals never coincide.
+
+A filter that discards a real conjunction is worse than no filter at all, so each rejection
+is backed by an inequality that holds for every true anomaly and every time in the window,
+never by a sampled minimum. Both budgets that can stop the branch and bound early return a
+pass, so exhausting a budget costs selectivity and never safety.
+
+What survives is refined to a time of closest approach with Brent's method applied to the
+product of the relative position and the relative velocity, which vanishes at every extremum
+of the range and stays smooth through it. Both covariances are then carried from the RIC
+frame at the catalogue epoch into the inertial frame, forward with the state transition
+matrix of the two-body flow, and into the plane normal to the relative velocity. That last
+projection is what makes a two-dimensional formulation valid: under linear relative motion
+the secondary crosses that plane in a straight line, so the three-dimensional question
+becomes a two-dimensional one about a region.
+
+The probability is the mass of a bivariate Gaussian inside that region, and it is evaluated
+two independent ways. Foster and Estes (1992) integrate in polar coordinates with adaptive
+quadrature. Alfano (2005a) performs the inner integral analytically with the error function
+and applies Simpson's rule to what is left. The two share nothing but the reduction to
+principal axes, so agreement between them checks both. Chan's series (2008) and a Monte Carlo
+estimator that samples the three-dimensional relative position provide two further checks of
+a different kind.
 
 ```python
 from conjunction_screening import generate_catalog, run_screening
@@ -125,25 +107,24 @@ print(format_ranking_table(rank_report(report), limit=3))
 # ... 5 further event(s) not shown
 ```
 
-Runnable examples live in `examples/`:
+Four runnable scripts live in `examples/`, each with `--help` and a `--reduced` flag:
 
 ```bash
 uv run python examples/screen_catalog.py
 uv run python examples/dilution_study.py
 uv run python examples/method_comparison.py
+uv run python examples/render_figures.py
 ```
-
-Each accepts `--reduced` to run a smaller catalogue, and `--help` to list its options.
 
 ## Results
 
-Every number below was produced by the commands shown, on a synthetic catalogue generated
-from seed 20260731. No orbital element set is downloaded or embedded.
+Every number here was produced by the commands shown, on a synthetic catalogue generated from
+seed 20260731. No orbital element set is downloaded or embedded.
 
-### Screening run
+### The cascade earns its cost
 
 `uv run python examples/screen_catalog.py`, 240 secondary objects, an 86400 s window, and a
-5000 m screening threshold. The catalogue is generated in 0.11 s and screened in 0.18 s.
+5000 m screening threshold.
 
 | Stage | Rejected | Remaining |
 | --- | --- | --- |
@@ -154,6 +135,10 @@ from seed 20260731. No orbital element set is downloaded or embedded.
 The eight survivors produced eight conjunction events. The time filter narrowed the close
 approach search to 2792.1 s of candidate windows, against the 691200 s that searching the
 whole window for all eight survivors would have covered, a reduction by a factor of 247.6.
+
+### Miss distance does not order the risk
+
+![Probability of collision against miss distance for the eight screened conjunctions, with the event at 500.9 m carrying a smaller probability than the one at 907.9 m because its covariance is tighter across the miss direction](docs/figures/screening_scatter.png)
 
 | Rank | Object | TCA [s] | Miss [m] | Relative speed [m/s] | Combined radius [m] | Pc | Action |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -166,14 +151,35 @@ whole window for all eight survivors would have covered, a reduction by a factor
 | 7 | PLANTED-04 | 66519.202 | 1710.7 | 2938.4 | 7.4 | 4.5812e-224 | dismiss |
 | 8 | PLANTED-03 | 53295.102 | 3382.9 | 572.3 | 6.4 | 0.0000e+00 | dismiss |
 
-The action thresholds are 1e-4 for act and 1e-7 for monitor. Ranks 5 and 6 show why miss
-distance alone is not a ranking: rank 6 has a smaller miss distance than rank 5 and still a
-smaller probability, because its combined covariance is wider.
+The action thresholds are 1e-4 for act and 1e-7 for monitor. Both markers below the floor of
+the figure are events whose probability underflowed or reached zero.
 
-### Foster against Alfano, and against Chan
+Ranks 1 and 2 invert the miss distance order at the top of the table, and ranks 5 and 6 invert
+it again at the bottom. The same command prints the reason:
+
+| Object | Miss [m] | sigma x [m] | sigma y [m] | Miss in sigma | Pc |
+| --- | --- | --- | --- | --- | --- |
+| PLANTED-05 | 122.5 | 1554.5 | 84.2 | 0.61 | 1.4379e-04 |
+| PLANTED-06 | 103.5 | 3139.2 | 70.4 | 0.04 | 1.3852e-04 |
+| PLANTED-01 | 230.7 | 1964.3 | 94.7 | 2.30 | 1.0201e-05 |
+| PLANTED-02 | 1997.8 | 2128.9 | 352.6 | 4.97 | 1.3181e-10 |
+| PLANTED-08 | 907.9 | 5248.5 | 87.4 | 7.93 | 8.3734e-19 |
+| PLANTED-07 | 500.9 | 1582.0 | 29.4 | 8.40 | 2.1838e-19 |
+| PLANTED-04 | 1710.7 | 2788.1 | 38.6 | 31.91 | 4.5812e-224 |
+| PLANTED-03 | 3382.9 | 4449.0 | 35.8 | 87.79 | 0.0000e+00 |
+
+Rank 6 is 407 m closer than rank 5 and still carries the smaller probability, because in the
+units the probability is computed in it is the more distant of the two: 8.40 standard
+deviations against 7.93, its combined covariance being three times tighter across the miss
+direction, 29.4 m against 87.4 m. The metres and the risk disagree because they are measuring
+different things, and this inversion is pinned by a regression test.
+
+### Foster against Alfano, Chan, and four million samples
 
 `uv run python examples/method_comparison.py`, eight encounters spanning miss distances from
 50 m to 700 m and in-plane covariance aspect ratios from 1 to 20.
+
+![Relative difference from the Foster method against the Foster probability, with Alfano flat on the double precision floor near 1e-16, Chan rising to 5e-3 as the covariance elongates, and the Monte Carlo points sitting on or below their own one sigma sampling noise](docs/figures/method_agreement.png)
 
 | Case | Miss [m] | R [m] | sigma x [m] | sigma y [m] | Foster | Alfano | Chan |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -186,22 +192,21 @@ smaller probability, because its combined covariance is wider.
 | wide-covariance | 120.0 | 10.0 | 3000.0 | 1500.0 | 1.110036e-05 | 1.110036e-05 | 1.110038e-05 |
 | tight-covariance | 80.0 | 9.0 | 60.0 | 40.0 | 4.004085e-03 | 4.004085e-03 | 3.995193e-03 |
 
-Worst relative difference between Foster and Alfano over the eight cases: 4.348e-16, which
-is at the level of the double precision representation and well inside the 1e-11 relative
-tolerance each quadrature was asked for.
+The worst relative difference between Foster and Alfano over the eight cases is 4.348e-16,
+which is the level of the double precision representation and well inside the 1e-11 relative
+tolerance each quadrature was asked for. Two formulations that share only the principal axis
+reduction landing on the same double is the strongest evidence available here.
 
-Worst relative difference between Foster and Chan: 5.431e-03, on the tight-covariance case.
-Chan agrees with Foster to 5.910e-16 relative on the three circular cases, where its
-equal-area substitution is an identity, and departs from it as the aspect ratio grows. That
-is the expected behaviour of the approximation, and is why Chan is used here as a cross
-check rather than as the primary result.
+The worst relative difference between Foster and Chan is 5.431e-03, on the tight-covariance
+case. Chan agrees with Foster to 5.910e-16 on the three circular cases, where its equal-area
+substitution is an identity, and departs as the aspect ratio grows. That is the expected
+behaviour of the approximation, and it is why Chan is a cross check here rather than the
+primary result.
 
-### Monte Carlo cross check
-
-Same command, 4000000 draws per case. The estimator samples the three-dimensional relative
-position from the combined covariance, projects each draw onto the plane normal to the
-relative velocity, and counts the draws inside the combined hard body radius, so it tests
-the encounter plane construction as well as the integral.
+The Monte Carlo estimator, 4000000 draws per case, samples the three-dimensional relative
+position, projects each draw onto the plane normal to the relative velocity, and counts the
+draws inside the hard body radius, so it tests the encounter plane construction as well as
+the integral.
 
 | Case | Foster | Monte Carlo | Standard error | Deviation |
 | --- | --- | --- | --- | --- |
@@ -218,12 +223,11 @@ Every case lies within 1.76 binomial standard errors of the analytic value. The 
 error is computed from the estimate itself, so the check tightens as the sample count grows
 rather than being calibrated to the difference that happened to be observed.
 
-### Dilution and maximum probability
+### The dilution sweep, in numbers
 
-`uv run python examples/dilution_study.py`, covariance scaled over five decades.
-
-An isotropic reference case, miss distance 100 m, nominal sigma 500 m in both in-plane
-directions, combined hard body radius 10 m:
+`uv run python examples/dilution_study.py`. The isotropic reference case is the one drawn at
+the top of this page: miss distance 100 m, nominal sigma 500 m in both in-plane directions,
+combined hard body radius 10 m.
 
 | Quantity | Value |
 | --- | --- |
@@ -234,13 +238,6 @@ directions, combined hard body radius 10 m:
 | closed form d / sqrt(2) | 70.7 m |
 | dilution factor, maximum divided by nominal | 18.77 |
 | fitted slope of log Pc against log scale, largest decade | -2.0000 |
-
-The numerical maximum agrees with the closed form to 4.3e-6 relative, and the location of
-the maximum agrees to 0.3 percent. The fitted slope of -2.0000 confirms the predicted
-inverse square asymptote of the falling branch.
-
-The curve is not monotonic. Scaling the covariance from 0.01 to 1000 gives, at selected
-scales, the following probabilities:
 
 | Covariance scale | Pc |
 | --- | --- |
@@ -253,96 +250,104 @@ scales, the following probabilities:
 | 56.2341 | 6.324515e-08 |
 | 1000.0000 | 2.000000e-10 |
 
-At a covariance scale of 8.2540 the probability is 2.934733e-06, which is 66.79 times
-smaller than the 1.960205e-04 reported at the nominal covariance, even though the miss
-distance and the hard body radius are unchanged. That is the dilution region, and it is the
-reason a small probability of collision is not by itself a reason to dismiss a conjunction.
+The same command repeats the sweep on real pipeline output. PLANTED-05, the highest ranked
+event of the screening run, has a nominal in-plane covariance of 1554.5 m by 84.2 m, a miss
+distance of 122.5 m, and a probability of 1.437928e-04. Scaling that covariance reaches a
+maximum of 3.458534e-04 at a scale of 0.4272, a dilution factor of 2.41, so the nominal
+covariance already sits past the peak. The closed form value of 1.111049e-03 for that
+geometry is higher than the achievable maximum, because it applies to a circular covariance
+and inflating an elongated one isotropically explores a different family.
 
-The highest-ranked event of the screening run, PLANTED-05, shows the same behaviour on real
-pipeline output. Its nominal in-plane covariance is 1554.5 m by 84.2 m, its miss distance
-122.5 m, and its probability 1.437928e-04. Scaling that covariance reaches a maximum of
-3.458534e-04 at a scale of 0.4272, a dilution factor of 2.41, so the nominal covariance
-already sits past the peak. The closed form value of 1.111049e-03 for that geometry is
-higher than the achievable maximum here because it applies to a circular covariance, and
-inflating an elongated one isotropically explores a different family.
+## Figures
 
-## Architecture
-
-| Module | Responsibility |
-| --- | --- |
-| `src/conjunction_screening/model/constants.py` | Physical constants in SI units |
-| `src/conjunction_screening/model/arrays.py` | Read-only array construction and shape checking |
-| `src/conjunction_screening/model/state.py` | Orbit states, classical elements, Kepler's equation, the element Jacobian |
-| `src/conjunction_screening/model/covariance.py` | Covariance type, definiteness checking, element-space construction |
-| `src/conjunction_screening/model/frames.py` | Rotations between the inertial frame and the RIC frame |
-| `src/conjunction_screening/model/encounter.py` | Encounter plane basis, projection, principal axis reduction |
-| `src/conjunction_screening/algorithm/propagation.py` | Two-body propagation, state transition matrix, covariance propagation |
-| `src/conjunction_screening/algorithm/filters.py` | The three-filter cascade and its conservativeness bounds |
-| `src/conjunction_screening/algorithm/close_approach.py` | Coarse sweep and Brent refinement of the time of closest approach |
-| `src/conjunction_screening/algorithm/probability.py` | Foster, Alfano, Chan, and Monte Carlo behind one Protocol |
-| `src/conjunction_screening/algorithm/maximum.py` | Maximum probability over covariance scaling |
-| `src/conjunction_screening/pipeline/catalog.py` | Synthetic catalogue generation with planted conjunctions |
-| `src/conjunction_screening/pipeline/screening.py` | The screening run and its structured trace |
-| `src/conjunction_screening/analysis/ranking.py` | Ranking and the mapping from probability to action |
-| `src/conjunction_screening/analysis/dilution.py` | The dilution study |
-| `src/conjunction_screening/analysis/comparison.py` | Cross comparison of the probability methods |
-| `src/conjunction_screening/analysis/figures.py` | Figure generation, the only module that writes to disk |
-| `examples/` | Wiring scripts with no logic of their own |
-
-The layers depend in one direction only. The model layer is pure functions over immutable
-values. The algorithm layer takes model values and returns result records, and does no
-plotting. The pipeline layer wires the two together and produces a trace. The analysis layer
-ranks, compares, and draws. The examples wire the analysis layer to a command line.
-
-## Testing
+The three figures on this page are committed snapshots, not build artefacts. One command
+rewrites all three:
 
 ```bash
-uv run pytest
+uv run python examples/render_figures.py
+```
+
+They are regenerated from the same seeds and the same settings that produce the tables above,
+so a figure and the table beside it describe one run. Continuous integration does not compare
+them byte for byte, because matplotlib output is not byte reproducible across platforms or
+across its own patch releases; a byte comparison would fail on a font rendering difference
+and say nothing about the mathematics. What is checked is that every tracked figure is a real
+PNG, that they fit inside a 250 KB budget, and that each one is referenced by this file.
+
+## Verification
+
+```bash
+uv run pytest --cov=src/conjunction_screening --cov-report=term-missing
 uv run ruff check .
 uv run mypy
 ```
 
-165 tests run in 10.8 s.
+209 tests cover 95.75 percent of the 1696 statements in the package. Continuous integration
+runs that same command with `--cov-fail-under=93` on Ubuntu and on Windows, which is the
+measured figure rounded down and given two points of headroom, so that a platform difference
+in which branch a filter takes cannot fail a build on its own.
 
-The suite has three tiers: property and invariant tests covering the mathematics,
-regression tests pinning recorded behaviour, and integration tests running each
-example script under a reduced iteration count.
+The suite has three tiers: property and invariant tests over the mathematics, regression tests
+pinning one recorded screening run, and integration tests that run every example script under
+a reduced iteration count.
 
-The property tier covers the safety property that the whole cascade rests on. Catalogues in
-which every secondary is a planted conjunction with a known time of closest approach and a
-known miss distance are generated, and every filter is required to pass every one of them.
-Selectivity is covered separately, with pairs whose geometry can be checked on paper: two
-circular orbits 800 km apart for the perigee and apogee filter, a circle and a perpendicular
-ellipse whose paths stay 17.5 km apart for the orbit path filter, and two equal-period
-circles crossing a quarter of a revolution out of phase for the time filter. The Lipschitz
-constant the orbit path filter depends on is checked against a finely sampled numerical
-derivative, because a filter whose bound is not a bound could discard a real conjunction.
+The safety property the whole cascade rests on is covered directly. Catalogues in which every
+secondary is a planted conjunction with a known time of closest approach and a known miss
+distance are generated, and every filter is required to pass every one of them. Selectivity is
+covered separately, on pairs whose geometry can be checked on paper: two circular orbits
+800 km apart, a circle and a perpendicular ellipse whose paths stay 17.5 km apart, and two
+equal-period circles crossing a quarter of a revolution out of phase. The Lipschitz constant
+the orbit path filter depends on is checked against a finely sampled numerical derivative,
+because a filter whose bound is not a bound could discard a real conjunction.
 
 Other invariants covered: the state transition matrix is symplectic; the time of closest
 approach has zero relative range rate; miss distance is symmetric under swapping the two
 objects; the encounter plane projection preserves the magnitude of a perpendicular relative
-position; the covariance stays symmetric and positive semi-definite through every stage of
-the chain; Foster and Alfano agree; Chan is exact for a circular covariance and departs
-monotonically as the aspect ratio grows; probability falls to zero with miss distance and
-rises towards one with hard body radius; the dilution curve rises then falls and the maximum
-probability calculation finds the peak; and a Monte Carlo estimate agrees with the analytic
-value.
+position; the covariance stays symmetric and positive semi-definite through every stage;
+Foster and Alfano agree; Chan is exact for a circular covariance and departs monotonically as
+the aspect ratio grows; the combined hard body contains the Minkowski sum of the two bodies in
+every direction; the dilution curve rises then falls; and a Monte Carlo estimate agrees with
+every analytic value.
 
-Two rules govern the tolerances. Only values from a converged solve are pinned. A close
-approach whose refinement did not converge is excluded from the report before it can reach a
-regression test, and the regression module asserts that every pinned event converged,
-because the state of a non-converged iteration depends on the order a floating point
-reduction ran in and differs between machines. Every tolerance is derived from the
-measurement rather than from an observed error. The residual range rate is bounded by the
-curvature of the range multiplied by the root find tolerance. The agreement between a
-computed time of closest approach and the time an encounter was constructed around uses the
-propagator round trip error, measured inside the test, divided by the relative speed. The
-symplectic residual is bounded in terms of the square of the largest entry of the
-non-dimensional transition matrix, so the same expression works from a one minute to a one
-day propagation. The Monte Carlo comparison uses four binomial standard errors computed from
-the estimate. A separate regression test measures the tightest margin of any filter decision
-in the recorded run and requires it to be a substantial fraction of the threshold, so the
-pinned counts cannot be resting on a comparison that a rounding difference could flip.
+Two rules govern the tolerances. Only values from a converged solve are pinned, and the
+regression module asserts that every pinned event converged, because the state of a
+non-converged iteration depends on the order a floating point reduction ran in and differs
+between machines. Every tolerance is derived from the measurement rather than from an observed
+error: the residual range rate is bounded by the curvature of the range times the root find
+tolerance, the symplectic residual by the square of the largest entry of the non-dimensional
+transition matrix, the Monte Carlo comparison by four binomial standard errors computed from
+the estimate. Probabilities below the dismissal threshold are pinned to two significant figures
+rather than six, because a value twelve orders below dismissal is a deep tail quadrature that
+no machine reproduces to parts per million, and a real regression there moves it by orders of
+magnitude rather than by parts per million.
+
+## What this does not do
+
+`docs/design-notes.md` carries the full list, the alternatives that were considered and
+rejected, and what closing each limitation would cost. The short version:
+
+- The propagation is two-body. There is no J2, no drag, no third body, no solar radiation
+  pressure. The synthetic catalogue is generated under the same model, so the internal
+  consistency the tests check is real, but no number here is a prediction about a real object.
+  Adding J2 secular rates would force the path and time filters to be padded by roughly 500 km
+  for a one day window, which destroys the selectivity that makes the cascade worth running.
+- The two-dimensional formulation assumes a short encounter with linear relative motion and a
+  covariance that does not evolve during it. It fails for slow encounters and for repeating
+  ones, and nothing here detects either condition.
+- The covariances are synthetic, and the two objects are treated as having uncorrelated orbit
+  determination errors.
+- Probability of collision is a decision input and not a decision. It says nothing about the
+  cost of a manoeuvre, the propellant budget, or the risk of moving into a different part of
+  the catalogue.
+
+The hard body used to be on that list, and is not any more. Both objects were once treated as
+spheres with a single combined radius, which is poor for a large object with deployed
+structures, where the cross section depends on the direction of approach. An object can now be
+given a triaxial ellipsoid; the two bodies are combined into one that provably contains their
+Minkowski sum, and its shadow along the relative velocity is the region the probability is
+integrated over. The 25 m by 5 m body in the test suite presents a cross section five times
+larger in area seen side on than seen end on, and the screening report gives every event its
+own outline. `docs/design-notes.md` records what that cost.
 
 ## References
 
@@ -369,6 +374,12 @@ Methods:
   Institute of Aeronautics and Astronautics, 2008. ISBN 978-1-884989-18-6.
   DOI [10.2514/4.989186](https://doi.org/10.2514/4.989186). Source of the convergent series
   and of the equal-area circle substitution it rests on.
+- Kurzhanski, A. B., and Valyi, I. "Ellipsoidal Calculus for Estimation and Control."
+  Systems and Control: Foundations and Applications, Birkhauser, 1997.
+  ISBN 978-0-8176-3699-9. Publisher record:
+  [Springer 9780817636999](https://link.springer.com/book/9780817636999). Source of the
+  external ellipsoidal approximation of a Minkowski sum, used here to combine two hard
+  bodies into one.
 
 Dependencies:
 
@@ -384,6 +395,8 @@ Dependencies:
   Foundation licence.
 - [pytest](https://docs.pytest.org/) 8.3 or later, development only. Test runner.
   MIT licence.
+- [pytest-cov](https://pytest-cov.readthedocs.io/) 6.0 or later, development only. Coverage
+  measurement. MIT licence.
 - [ruff](https://docs.astral.sh/ruff/) 0.8 or later, development only. Linter and import
   sorter. MIT licence.
 - [mypy](https://mypy-lang.org/) 1.13 or later, development only. Static type checker.

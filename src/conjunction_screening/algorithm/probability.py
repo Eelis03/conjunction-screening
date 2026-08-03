@@ -2,8 +2,9 @@
 
 All four implementations answer the same question: given a bivariate Gaussian on
 the encounter plane with mean at the projected miss vector and covariance equal
-to the projected combined covariance, what is the mass of that density inside a
-disc of the combined hard body radius centred on the primary?
+to the projected combined covariance, what is the mass of that density inside the
+region the combined hard body covers, which for two spheres is a disc of the
+combined radius centred on the primary?
 
     Pc = (1 / (2 pi sx sy)) * integral over the disc of
          exp(-0.5 * (((x - mx) / sx)^2 + ((y - my) / sy)^2)) dx dy
@@ -24,6 +25,11 @@ separates. The four methods differ in how the integral is evaluated:
 
 Foster and Alfano are independent formulations of the same integral, so their
 agreement is a genuine cross validation rather than a restatement.
+
+A non-spherical hard body casts an elliptical shadow on the encounter plane
+rather than a circular one. Foster and Monte Carlo take that region as it is.
+Alfano and Chan reject it, because the circle enters their derivations before
+the density does.
 """
 
 from __future__ import annotations
@@ -116,26 +122,49 @@ class FosterMethod:
         return FOSTER
 
     def probability(self, encounter: EncounterGeometry) -> ProbabilityResult:
-        """Evaluate the disc integral in polar coordinates."""
+        """Evaluate the integral over the hard body cross section in polar coordinates.
+
+        Without a cross section the region is the disc of the combined radius and
+        the published formulation applies unchanged. With one the region is an
+        ellipse, the upper limit of the radial integral becomes a function of the
+        angle, and the two integrations swap order. The disc is a special case of
+        the second form, and the test suite runs one encounter through both to
+        check that they agree.
+        """
         form = principal_axis_form(encounter)
         sigma_x, sigma_y = form.sigma_x_m, form.sigma_y_m
         mean_x, mean_y = form.mean_x_m, form.mean_y_m
-        radius = form.radius_m
+        section = form.cross_section
 
-        def integrand(angle: float, distance: float) -> float:
+        def density(distance: float, angle: float) -> float:
             x = distance * np.cos(angle) - mean_x
             y = distance * np.sin(angle) - mean_y
             return float(distance * np.exp(-0.5 * ((x / sigma_x) ** 2 + (y / sigma_y) ** 2)))
 
-        integral, error = dblquad(
-            integrand,
-            0.0,
-            radius,
-            0.0,
-            2.0 * np.pi,
-            epsabs=self.absolute_tolerance,
-            epsrel=self.relative_tolerance,
-        )
+        if section is None:
+            integral, error = dblquad(
+                lambda angle, distance: density(distance, angle),
+                0.0,
+                form.radius_m,
+                0.0,
+                2.0 * np.pi,
+                epsabs=self.absolute_tolerance,
+                epsrel=self.relative_tolerance,
+            )
+            shape = "disc"
+        else:
+            integral, error = dblquad(
+                density,
+                0.0,
+                2.0 * np.pi,
+                0.0,
+                section.radius_at,
+                epsabs=self.absolute_tolerance,
+                epsrel=self.relative_tolerance,
+            )
+            major, minor = section.semi_axes_m
+            shape = f"ellipse {major:.3f} m by {minor:.3f} m"
+
         normaliser = 1.0 / (2.0 * np.pi * sigma_x * sigma_y)
         value = float(np.clip(integral * normaliser, 0.0, 1.0))
         scaled_error = float(error) * normaliser
@@ -147,7 +176,30 @@ class FosterMethod:
             value=value,
             error_estimate=scaled_error,
             converged=converged,
-            detail=f"adaptive polar quadrature, estimated absolute error {scaled_error:.3e}",
+            detail=(
+                f"adaptive polar quadrature over a {shape}, "
+                f"estimated absolute error {scaled_error:.3e}"
+            ),
+        )
+
+
+def _require_circular_cross_section(form: PrincipalForm, method: str) -> None:
+    """Raise unless the hard body cross section is a disc.
+
+    Alfano integrates across the chord of a circle and Chan expands the tail of a
+    non-central chi-square about a circular region. Both derivations use the
+    circle before the density enters, so neither extends to an elliptical shadow
+    by changing a limit. Failing loudly is the honest response: silently
+    substituting a disc of the same area would return a number that looks like a
+    cross check of the Foster result and is not one.
+    """
+    section = form.cross_section
+    if section is not None and not section.is_circular:
+        major, minor = section.semi_axes_m
+        raise ValueError(
+            f"{method} assumes a circular hard body cross section, but this encounter "
+            f"has semi-axes {major:.3f} m and {minor:.3f} m; use the Foster or the "
+            f"Monte Carlo method for a non-circular hard body"
         )
 
 
@@ -188,6 +240,7 @@ class AlfanoMethod:
     def probability(self, encounter: EncounterGeometry) -> ProbabilityResult:
         """Evaluate the reduced integral by repeated Simpson refinement."""
         form = principal_axis_form(encounter)
+        _require_circular_cross_section(form, ALFANO)
         intervals = max(self.initial_intervals, 2)
         previous = _alfano_simpson(form, intervals)
         while intervals < self.max_intervals:
@@ -292,6 +345,7 @@ class ChanMethod:
     def probability(self, encounter: EncounterGeometry) -> ProbabilityResult:
         """Sum the series to the requested tolerance."""
         form = principal_axis_form(encounter)
+        _require_circular_cross_section(form, CHAN)
         u = form.radius_m**2 / (form.sigma_x_m * form.sigma_y_m)
         v = (form.mean_x_m / form.sigma_x_m) ** 2 + (form.mean_y_m / form.sigma_y_m) ** 2
         half_u = 0.5 * u
@@ -366,6 +420,13 @@ class MonteCarloMethod:
     plane construction and the projection of the covariance as well as the value
     of the integral.
 
+    For a spherical hard body the hit test is a distance in three dimensions and
+    needs no plane basis at all, which is what makes it an independent check of
+    the basis. For a non-spherical one the draw has to be expressed in the plane
+    to be tested against the shadow, so that independence is given up; the check
+    then covers the quadrature over a general region, which is the part that is
+    new.
+
     Attributes:
         samples: Number of draws.
         seed: Seed for the generator, so a run is reproducible.
@@ -394,6 +455,8 @@ class MonteCarloMethod:
         direction = direction / float(np.linalg.norm(direction))
         mean = np.asarray(encounter.relative_position_m, dtype=np.float64)
         radius = encounter.hard_body_radius_m
+        section = encounter.cross_section
+        basis = np.asarray(encounter.basis, dtype=np.float64)
 
         hits = 0
         drawn = 0
@@ -401,9 +464,13 @@ class MonteCarloMethod:
             count = min(self.block, self.samples - drawn)
             normal = generator.standard_normal((count, 3))
             offsets = mean + normal @ factor.T
-            along = offsets @ direction
-            perpendicular = offsets - along[:, None] * direction[None, :]
-            hits += int(np.count_nonzero(np.linalg.norm(perpendicular, axis=1) <= radius))
+            if section is None:
+                along = offsets @ direction
+                perpendicular = offsets - along[:, None] * direction[None, :]
+                inside = np.linalg.norm(perpendicular, axis=1) <= radius
+            else:
+                inside = section.contains(offsets @ basis.T)
+            hits += int(np.count_nonzero(inside))
             drawn += count
 
         estimate = hits / self.samples

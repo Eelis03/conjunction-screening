@@ -50,6 +50,7 @@ from conjunction_screening.model.frames import (
     rotate_covariance_to_inertial,
     rotate_covariance_to_ric,
 )
+from conjunction_screening.model.hardbody import combine_hard_bodies, projected_cross_section
 from conjunction_screening.model.state import OrbitState
 from conjunction_screening.pipeline.catalog import CatalogObject, SyntheticCatalog
 
@@ -218,6 +219,14 @@ def build_encounter(
     The combined relative position covariance is the sum of the two propagated
     position covariances, which assumes the two orbit determination solutions are
     uncorrelated.
+
+    The hard body is handled the same way in both directions. When both objects
+    are spheres the combined body is the sphere of the combined radius, its
+    shadow on the encounter plane is the disc of that radius whatever the
+    approach direction, and no cross section is attached. When either is not, the
+    two bodies are combined and the shadow is cast along the relative velocity,
+    so the cross section, and with it the probability, depends on the direction
+    the secondary comes from.
     """
     primary_covariance, primary_state = propagated_position_covariance(primary, approach.tca_s)
     secondary_covariance, _ = propagated_position_covariance(secondary, approach.tca_s)
@@ -226,6 +235,12 @@ def build_encounter(
     basis = encounter_plane_basis(approach.relative_position_m, approach.relative_velocity_m_s)
     plane_covariance = combined.transformed(basis, frame="encounter")
     miss_vector = project_to_encounter_plane(approach.relative_position_m, basis)
+
+    body = combine_hard_bodies(primary.hard_body, secondary.hard_body)
+    section = None if body.is_sphere else projected_cross_section(body, basis)
+    radius = (
+        primary.radius_m + secondary.radius_m if section is None else section.equivalent_radius_m
+    )
 
     return EncounterGeometry(
         tca_s=approach.tca_s,
@@ -236,7 +251,8 @@ def build_encounter(
         basis=basis,
         miss_vector_m=miss_vector,
         plane_covariance=plane_covariance,
-        hard_body_radius_m=primary.radius_m + secondary.radius_m,
+        hard_body_radius_m=radius,
+        cross_section=section,
     )
 
 
