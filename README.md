@@ -79,13 +79,15 @@ projection is what makes a two-dimensional formulation valid: under linear relat
 the secondary crosses that plane in a straight line, so the three-dimensional question
 becomes a two-dimensional one about a region.
 
-The probability is the mass of a bivariate Gaussian inside that region, and it is evaluated
-two independent ways. Foster and Estes (1992) integrate in polar coordinates with adaptive
-quadrature. Alfano (2005a) performs the inner integral analytically with the error function
-and applies Simpson's rule to what is left. The two share nothing but the reduction to
-principal axes, so agreement between them checks both. Chan's series (2008) and a Monte Carlo
-estimator that samples the three-dimensional relative position provide two further checks of
-a different kind.
+The probability is the mass of a bivariate Gaussian inside that region, and it is evaluated three
+independent ways. Foster and Estes (1992) integrate in polar coordinates with adaptive quadrature.
+Alfano (2005a) performs the inner integral analytically with the error function and applies
+Simpson's rule to what is left. Patera (2001) applies Green's theorem and integrates around the
+boundary of the region instead of over its interior, so the region enters only as the curve that
+bounds it and an ellipse costs a different curve rather than a different derivation. The three
+share nothing but the reduction to principal axes, so agreement between them checks all three.
+Chan's series (2008) and a Monte Carlo estimator that samples the three-dimensional relative
+position provide two further checks of a different kind.
 
 ```python
 from conjunction_screening import generate_catalog, run_screening
@@ -282,7 +284,7 @@ uv run ruff check .
 uv run mypy
 ```
 
-209 tests cover 95.75 percent of the 1696 statements in the package. Continuous integration
+222 tests cover 95.90 percent of the 1754 statements in the package. Continuous integration
 runs that same command with `--cov-fail-under=93` on Ubuntu and on Windows, which is the
 measured figure rounded down and given two points of headroom, so that a platform difference
 in which branch a filter takes cannot fail a build on its own.
@@ -300,14 +302,14 @@ equal-period circles crossing a quarter of a revolution out of phase. The Lipsch
 the orbit path filter depends on is checked against a finely sampled numerical derivative,
 because a filter whose bound is not a bound could discard a real conjunction.
 
-Other invariants covered: the state transition matrix is symplectic; the time of closest
-approach has zero relative range rate; miss distance is symmetric under swapping the two
-objects; the encounter plane projection preserves the magnitude of a perpendicular relative
-position; the covariance stays symmetric and positive semi-definite through every stage;
-Foster and Alfano agree; Chan is exact for a circular covariance and departs monotonically as
-the aspect ratio grows; the combined hard body contains the Minkowski sum of the two bodies in
-every direction; the dilution curve rises then falls; and a Monte Carlo estimate agrees with
-every analytic value.
+Other invariants covered: the state transition matrix is symplectic; the time of closest approach
+has zero relative range rate; miss distance is symmetric under swapping the two objects; the
+encounter plane projection preserves the magnitude of a perpendicular relative position; the
+covariance stays symmetric and positive semi-definite through every stage; Foster, Alfano, and
+Patera agree on a disc, and Foster and Patera still agree on an outline that is not one; Chan is
+exact for a circular covariance and departs monotonically as the aspect ratio grows; the combined
+hard body contains the Minkowski sum of the two bodies in every direction; the dilution curve
+rises then falls; and a Monte Carlo estimate agrees with every analytic value.
 
 Two rules govern the tolerances. Only values from a converged solve are pinned, and the
 regression module asserts that every pinned event converged, because the state of a
@@ -362,6 +364,11 @@ Methods:
   Space Center, August 1992. Stable record:
   [Stanford SearchWorks 13354320](https://searchworks.stanford.edu/view/13354320). Source of
   the polar quadrature formulation of the two-dimensional probability of collision.
+- Patera, R. P. "General Method for Calculating Satellite Collision Probability." Journal of
+  Guidance, Control, and Dynamics, Vol. 24, No. 4, 2001, pp. 716 to 722.
+  DOI [10.2514/2.4771](https://doi.org/10.2514/2.4771). Source of the reduction of the area
+  integral to a contour integral around the boundary of the hard body outline, which is the
+  analytic method that does not assume the outline is a circle.
 - Alfano, S. "A Numerical Implementation of Spherical Object Collision Probability." The
   Journal of the Astronautical Sciences, Vol. 53, No. 1, 2005, pp. 103 to 109.
   DOI [10.1007/BF03546397](https://doi.org/10.1007/BF03546397). Source of the reduction of

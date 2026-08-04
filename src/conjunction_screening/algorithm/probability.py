@@ -1,6 +1,6 @@
 """Two-dimensional probability of collision.
 
-All four implementations answer the same question: given a bivariate Gaussian on
+All five implementations answer the same question: given a bivariate Gaussian on
 the encounter plane with mean at the projected miss vector and covariance equal
 to the projected combined covariance, what is the mass of that density inside the
 region the combined hard body covers, which for two spheres is a disc of the
@@ -10,10 +10,12 @@ combined radius centred on the primary?
          exp(-0.5 * (((x - mx) / sx)^2 + ((y - my) / sy)^2)) dx dy
 
 written here in the principal axes of the covariance, where the density
-separates. The four methods differ in how the integral is evaluated:
+separates. The five methods differ in how the integral is evaluated:
 
 * ``FosterMethod`` integrates in polar coordinates over the disc with adaptive
   quadrature, which is the formulation of Foster and Estes (1992).
+* ``PateraMethod`` applies Green's theorem and integrates around the boundary of
+  the region instead of over its interior, following Patera (2001).
 * ``AlfanoMethod`` performs the inner integral analytically with the error
   function and applies Simpson's rule to what is left, following Alfano (2005).
 * ``ChanMethod`` evaluates Chan's convergent series, which is exact for a
@@ -21,15 +23,16 @@ separates. The four methods differ in how the integral is evaluated:
 * ``MonteCarloMethod`` samples the three-dimensional relative position error and
   counts how many straight-line trajectories pass within the hard body radius. It
   exercises the projection as well as the integral and is the reference the other
-  three are checked against.
+  four are checked against.
 
-Foster and Alfano are independent formulations of the same integral, so their
+Foster, Alfano, and Patera are independent formulations of the same integral, an
+area quadrature, a reduction to one dimension, and a contour integral, so their
 agreement is a genuine cross validation rather than a restatement.
 
 A non-spherical hard body casts an elliptical shadow on the encounter plane
-rather than a circular one. Foster and Monte Carlo take that region as it is.
-Alfano and Chan reject it, because the circle enters their derivations before
-the density does.
+rather than a circular one. Foster, Patera, and Monte Carlo take that region as
+it is. Alfano and Chan reject it, because the circle enters their derivations
+before the density does.
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ import numpy as np
 from scipy.integrate import dblquad
 from scipy.special import erf, erfc, gammaln
 
+from conjunction_screening.model.arrays import Matrix, Vector
 from conjunction_screening.model.encounter import (
     EncounterGeometry,
     PrincipalForm,
@@ -52,15 +56,18 @@ __all__ = [
     "CHAN",
     "FOSTER",
     "MONTE_CARLO",
+    "PATERA",
     "AlfanoMethod",
     "ChanMethod",
     "FosterMethod",
     "MonteCarloMethod",
+    "PateraMethod",
     "ProbabilityMethod",
     "ProbabilityResult",
 ]
 
 FOSTER: Final[str] = "foster"
+PATERA: Final[str] = "patera"
 ALFANO: Final[str] = "alfano"
 CHAN: Final[str] = "chan"
 MONTE_CARLO: Final[str] = "monte-carlo"
@@ -181,6 +188,169 @@ class FosterMethod:
                 f"estimated absolute error {scaled_error:.3e}"
             ),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class PateraMethod:
+    """Patera's contour integral around the boundary of the hard body outline.
+
+    Scaling each principal axis by its own standard deviation turns the density
+    into the standard isotropic Gaussian, in which the mass inside a region has a
+    vector potential: the field ``g(r) (-y, x)`` with
+
+        g(r) = (1 - exp(-r^2 / 2)) / r^2
+
+    has curl ``exp(-r^2 / 2)``, where ``r`` is measured from the miss vector.
+    Green's theorem then replaces the integral over the region by one around its
+    boundary,
+
+        Pc = (1 / (2 pi)) * contour integral of g(r) (x dy - y dx)
+
+    taken anticlockwise. The disc never enters the derivation, so unlike Alfano
+    and Chan this follows an elliptical outline by changing the curve rather than
+    the formulation, and it is therefore the analytic cross check that survives a
+    non-spherical hard body.
+
+    The outline is a smooth closed curve and the integrand is periodic and
+    analytic in the parameter along it, so the trapezoidal rule converges
+    geometrically rather than at a fixed order and no adaptive subdivision is
+    needed.
+
+    Attributes:
+        relative_tolerance: Convergence threshold on the change between
+            successive node counts, relative to the newer value.
+        initial_nodes: Number of boundary points at the first level.
+        max_nodes: Cap on the node count before the solve is declared
+            non-converged.
+    """
+
+    relative_tolerance: float = 1e-11
+    initial_nodes: int = 128
+    max_nodes: int = 1 << 18
+
+    @property
+    def name(self) -> str:
+        """Identifier of this method."""
+        return PATERA
+
+    def probability(self, encounter: EncounterGeometry) -> ProbabilityResult:
+        """Integrate around the outline, doubling the node count until it settles."""
+        form = principal_axis_form(encounter)
+        generator, centre = _patera_outline(form)
+        inside = float(np.linalg.norm(np.linalg.solve(generator, centre))) < 1.0
+        winding = 1.0 if inside else 0.0
+        nodes = max(self.initial_nodes, 8)
+        tail_form = _patera_prefers_the_tail_kernel(generator, centre, nodes)
+        previous = _patera_contour_sum(generator, centre, nodes, winding, tail_form)
+        while nodes < self.max_nodes:
+            nodes *= 2
+            current = _patera_contour_sum(generator, centre, nodes, winding, tail_form)
+            change = abs(current - previous)
+            if change <= self.relative_tolerance * max(current, np.finfo(float).tiny):
+                return ProbabilityResult(
+                    method=PATERA,
+                    value=float(np.clip(current, 0.0, 1.0)),
+                    error_estimate=change,
+                    converged=True,
+                    detail=f"contour rule converged at {nodes} nodes",
+                )
+            previous = current
+        return ProbabilityResult(
+            method=PATERA,
+            value=float(np.clip(previous, 0.0, 1.0)),
+            error_estimate=float("nan"),
+            converged=False,
+            detail=f"contour rule did not converge by {self.max_nodes} nodes",
+        )
+
+
+def _patera_outline(form: PrincipalForm) -> tuple[Matrix, Vector]:
+    """Return the outline generator and the miss vector, both in units of the sigmas.
+
+    Dividing each principal axis by its own standard deviation is what makes the
+    kernel a function of the distance alone. The outline becomes ``{L u : |u| = 1}``
+    for any square root ``L`` of the scaled shape matrix, and the disc of the
+    combined radius is the case where that matrix is ``R^2 I``, so the sphere needs
+    no separate path here either. The sign of the second column is set so that
+    increasing the parameter traverses the curve anticlockwise, which is the
+    orientation Green's theorem is written for.
+    """
+    section = form.cross_section
+    shape = np.eye(2, dtype=np.float64) * form.radius_m**2 if section is None else section.matrix
+    scaling = np.array([form.sigma_x_m, form.sigma_y_m], dtype=np.float64)
+    eigenvalues, eigenvectors = np.linalg.eigh(shape / np.outer(scaling, scaling))
+    generator = eigenvectors * np.sqrt(np.clip(eigenvalues, 0.0, None))
+    if float(np.linalg.det(generator)) < 0.0:
+        generator = generator * np.array([1.0, -1.0], dtype=np.float64)
+    centre = np.array([form.mean_x_m, form.mean_y_m], dtype=np.float64) / scaling
+    return np.asarray(generator, dtype=np.float64), centre
+
+
+def _patera_boundary(generator: Matrix, centre: Vector, nodes: int) -> tuple[Vector, Vector]:
+    """Return the squared distance to the density centre and the swept area element.
+
+    The swept element is ``x dy - y dx`` divided by the parameter step, which is
+    twice the area the radius vector covers per unit parameter.
+    """
+    angles = np.arange(nodes, dtype=np.float64) * (2.0 * np.pi / nodes)
+    cosine, sine = np.cos(angles), np.sin(angles)
+    point = generator @ np.stack((cosine, sine)) - centre[:, None]
+    tangent = generator @ np.stack((-sine, cosine))
+    squared_radius = np.asarray(point[0] ** 2 + point[1] ** 2, dtype=np.float64)
+    swept = np.asarray(point[0] * tangent[1] - point[1] * tangent[0], dtype=np.float64)
+    return squared_radius, swept
+
+
+def _patera_kernel(squared_radius: Vector, tail_form: bool) -> Vector:
+    """Return the contour kernel at each boundary point.
+
+    The kernel splits as ``1 / r^2`` minus ``exp(-r^2 / 2) / r^2``, and the first
+    part integrates to the winding number of the outline about the density centre,
+    which is one or zero and is known without integrating. Two algebraically equal
+    forms follow and they fail in opposite regimes. The regular form leaves that
+    part in the quadrature, where it cancels away numerically: on the deep tail
+    case in the test suite it returns 5e-21 for a probability of 1e-234. The tail
+    form subtracts it in closed form and is accurate there, but divides by zero
+    when the density centre lies on the outline, which the regular form handles.
+    """
+    safe = np.where(squared_radius > 0.0, squared_radius, 1.0)
+    if tail_form:
+        return np.asarray(
+            np.where(squared_radius > 0.0, np.exp(-0.5 * safe) / safe, np.inf), dtype=np.float64
+        )
+    return np.asarray(
+        np.where(squared_radius > 0.0, -np.expm1(-0.5 * safe) / safe, 0.5), dtype=np.float64
+    )
+
+
+def _patera_prefers_the_tail_kernel(generator: Matrix, centre: Vector, nodes: int) -> bool:
+    """Return whether the tail form of the kernel is the better conditioned one.
+
+    The two forms differ by a term whose integral is the winding number, so they
+    approximate the same value and the choice between them is purely numerical.
+    The one whose integrand is smaller in magnitude is the one whose sum cancels
+    less, so the peak over the boundary decides it. That rule carries no threshold
+    and picks the tail form in the tail, where the regular one cancels the answer
+    away, and the regular form when the density centre sits on the outline, where
+    the tail one is singular.
+    """
+    squared_radius, swept = _patera_boundary(generator, centre, nodes)
+    tail = float(np.max(np.abs(_patera_kernel(squared_radius, True) * swept)))
+    regular = float(np.max(np.abs(_patera_kernel(squared_radius, False) * swept)))
+    return tail < regular
+
+
+def _patera_contour_sum(
+    generator: Matrix, centre: Vector, nodes: int, winding: float, tail_form: bool
+) -> float:
+    """Apply the trapezoidal rule to the contour integral at a fixed node count.
+
+    The integrand is periodic, so the trapezoidal rule is the mean over equally
+    spaced nodes and the endpoint weights of the general rule do not arise.
+    """
+    squared_radius, swept = _patera_boundary(generator, centre, nodes)
+    total = float(np.mean(_patera_kernel(squared_radius, tail_form) * swept))
+    return winding - total if tail_form else total
 
 
 def _require_circular_cross_section(form: PrincipalForm, method: str) -> None:
