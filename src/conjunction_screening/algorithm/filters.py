@@ -611,15 +611,11 @@ def run_cascade(
     if not first.passed:
         return CascadeResult(verdicts=tuple(verdicts), candidate_windows=())
 
-    second = orbit_path_filter(
-        primary_elements, secondary_elements, config.threshold_m, config
-    )
+    second = orbit_path_filter(primary_elements, secondary_elements, config.threshold_m, config)
     verdicts.append(second)
     if not second.passed:
         return CascadeResult(verdicts=tuple(verdicts), candidate_windows=())
 
-    third, windows = time_filter(
-        primary_elements, secondary_elements, config.threshold_m, config
-    )
+    third, windows = time_filter(primary_elements, secondary_elements, config.threshold_m, config)
     verdicts.append(third)
     return CascadeResult(verdicts=tuple(verdicts), candidate_windows=windows)

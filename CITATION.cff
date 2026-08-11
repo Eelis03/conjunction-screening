@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Conjunction Screening"
+abstract: >-
+  Filtering a satellite catalogue down to the conjunctions that can matter, and
+  computing the probability of collision for each of them by two independent
+  formulations, Foster and Alfano, that check each other.
+type: software
+authors:
+  - family-names: Yilmaz
+    given-names: Emre
+repository-code: "https://github.com/Eelis03/conjunction-screening"
+license: MIT
+version: "0.1.0"
+date-released: "2026-08-11"
+keywords:
+  - space-debris
+  - conjunction-analysis
+  - collision-probability
+  - python

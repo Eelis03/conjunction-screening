@@ -212,9 +212,7 @@ def plot_screening_scatter(
     axes.set_ylim(floor / 6.0, max(thresholds.act * 40.0, 1e-3))
     axes.set_xlabel("miss distance at the time of closest approach [m]")
     axes.set_ylabel(f"probability of collision, floor at {floor:.0e}")
-    axes.set_title(
-        "Screened conjunctions: miss distance does not order the risk", fontsize=11
-    )
+    axes.set_title("Screened conjunctions: miss distance does not order the risk", fontsize=11)
     axes.grid(True, which="major", alpha=0.3)
     axes.legend(loc="upper right", fontsize=8, framealpha=0.9)
     figure.tight_layout()
@@ -251,11 +249,7 @@ def plot_method_agreement(
     reference = method_order[0]
     figure, axes = plt.subplots(figsize=_AGREEMENT_SIZE)
 
-    usable = [
-        comparison
-        for comparison in comparisons
-        if comparison.results[reference].value > 0.0
-    ]
+    usable = [comparison for comparison in comparisons if comparison.results[reference].value > 0.0]
     baseline = np.array(
         [comparison.results[reference].value for comparison in usable], dtype=np.float64
     )

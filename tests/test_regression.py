@@ -46,22 +46,63 @@ _EXPECTED_CANDIDATE_SECONDS = 2792.133927
 # object id, time of closest approach in s, miss distance in m, relative speed in
 # m/s, combined hard body radius in m, probability of collision
 _EXPECTED_EVENTS: tuple[tuple[str, float, float, float, float, float], ...] = (
-    ("PLANTED-05", 12353.126016474389, 122.47183526904838,
-     744.1590450784526, 6.730542619579624, 1.4379280656158053e-04),
-    ("PLANTED-06", 67252.0059954321, 103.51667155344157,
-     1670.3907113558985, 7.832254968939143, 1.3852067078963632e-04),
-    ("PLANTED-01", 57650.35869239602, 230.71284102973127,
-     2644.6710966733494, 7.315816285144148, 1.0201133586561593e-05),
-    ("PLANTED-02", 21248.42732437559, 1997.8467165951122,
-     471.0043914744732, 6.826285933000365, 1.3181321797307335e-10),
-    ("PLANTED-08", 73496.49461152835, 907.9239650841437,
-     786.3347064845029, 5.758000930212429, 8.373401070614024e-19),
-    ("PLANTED-07", 32526.929379558343, 500.8975021108618,
-     4575.973418748839, 5.612141596499105, 2.1837769938871676e-19),
-    ("PLANTED-04", 66519.20206735266, 1710.6533065971628,
-     2938.404648888308, 7.386580231430883, 4.58124931705702e-224),
-    ("PLANTED-03", 53295.10240118718, 3382.896316238055,
-     572.2715050612472, 6.432127918434734, 0.0),
+    (
+        "PLANTED-05",
+        12353.126016474389,
+        122.47183526904838,
+        744.1590450784526,
+        6.730542619579624,
+        1.4379280656158053e-04,
+    ),
+    (
+        "PLANTED-06",
+        67252.0059954321,
+        103.51667155344157,
+        1670.3907113558985,
+        7.832254968939143,
+        1.3852067078963632e-04,
+    ),
+    (
+        "PLANTED-01",
+        57650.35869239602,
+        230.71284102973127,
+        2644.6710966733494,
+        7.315816285144148,
+        1.0201133586561593e-05,
+    ),
+    (
+        "PLANTED-02",
+        21248.42732437559,
+        1997.8467165951122,
+        471.0043914744732,
+        6.826285933000365,
+        1.3181321797307335e-10,
+    ),
+    (
+        "PLANTED-08",
+        73496.49461152835,
+        907.9239650841437,
+        786.3347064845029,
+        5.758000930212429,
+        8.373401070614024e-19,
+    ),
+    (
+        "PLANTED-07",
+        32526.929379558343,
+        500.8975021108618,
+        4575.973418748839,
+        5.612141596499105,
+        2.1837769938871676e-19,
+    ),
+    (
+        "PLANTED-04",
+        66519.20206735266,
+        1710.6533065971628,
+        2938.404648888308,
+        7.386580231430883,
+        4.58124931705702e-224,
+    ),
+    ("PLANTED-03", 53295.10240118718, 3382.896316238055, 572.2715050612472, 6.432127918434734, 0.0),
 )
 
 _EXPECTED_ACTIONS: tuple[tuple[str, str], ...] = (
@@ -135,9 +176,7 @@ def test_events_match_the_recorded_run(regression_report: ScreeningReport) -> No
         object_id, tca_s, miss_m, speed, radius, probability = expected
         assert event.object_id == object_id
         assert event.tca_s == pytest.approx(tca_s, abs=_TIME_TOLERANCE_S)
-        assert event.miss_distance_m == pytest.approx(
-            miss_m, rel=_DISTANCE_RELATIVE_TOLERANCE
-        )
+        assert event.miss_distance_m == pytest.approx(miss_m, rel=_DISTANCE_RELATIVE_TOLERANCE)
         assert event.relative_speed_m_s == pytest.approx(speed, rel=1e-9)
         assert event.encounter.hard_body_radius_m == pytest.approx(radius, rel=1e-12)
         if probability >= _NEGLIGIBLE_PROBABILITY:

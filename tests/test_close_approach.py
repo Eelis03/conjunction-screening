@@ -104,9 +104,7 @@ def test_close_approach_matches_the_constructed_encounter(
             + 2.0 * position_error / best.relative_speed_m_s
         )
         assert abs(best.tca_s - truth.tca_s) <= time_tolerance
-        assert abs(best.miss_distance_m - truth.miss_distance_m) <= max(
-            10.0 * position_error, 1e-6
-        )
+        assert abs(best.miss_distance_m - truth.miss_distance_m) <= max(10.0 * position_error, 1e-6)
         assert best.relative_speed_m_s == pytest.approx(truth.relative_speed_m_s, rel=1e-9)
 
 
@@ -185,9 +183,7 @@ def test_approaches_outside_the_threshold_are_discarded(
 ) -> None:
     """A tighter threshold returns a subset of the approaches a wider one returns."""
     secondary = conjunction_catalog.secondaries[0]
-    wide = _search(
-        conjunction_catalog, secondary, CloseApproachSettings(threshold_m=_THRESHOLD_M)
-    )
+    wide = _search(conjunction_catalog, secondary, CloseApproachSettings(threshold_m=_THRESHOLD_M))
     narrow = _search(conjunction_catalog, secondary, CloseApproachSettings(threshold_m=10.0))
     assert len(narrow) <= len(wide)
     for approach in narrow:

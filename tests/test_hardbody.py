@@ -150,9 +150,7 @@ def test_the_combined_body_contains_the_minkowski_sum() -> None:
 def _orthogonal_rotation(angle_rad: float) -> np.ndarray:
     """Return a rotation about the third axis."""
     cosine, sine = float(np.cos(angle_rad)), float(np.sin(angle_rad))
-    return np.array(
-        [[cosine, -sine, 0.0], [sine, cosine, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64
-    )
+    return np.array([[cosine, -sine, 0.0], [sine, cosine, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
 
 
 def test_the_combining_parameter_minimises_the_size_of_the_result() -> None:

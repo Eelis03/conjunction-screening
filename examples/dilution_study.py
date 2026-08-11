@@ -85,8 +85,7 @@ def main() -> None:
         leading.encounter, method, minimum_scale=1e-2, maximum_scale=1e3, points=points
     )
     report_curve(
-        f"screened conjunction {leading.object_id}, "
-        f"time of closest approach {leading.tca_s:.3f} s",
+        f"screened conjunction {leading.object_id}, time of closest approach {leading.tca_s:.3f} s",
         screened_curve,
     )
 

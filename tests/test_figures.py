@@ -175,9 +175,7 @@ def test_the_agreement_figure_handles_a_method_that_matches_exactly(
     assert exact, "expected a case where the two quadratures reach the same double"
 
     destination = tmp_path / "agreement.png"
-    written = plot_method_agreement(
-        comparisons, (FOSTER, ALFANO, CHAN, MONTE_CARLO), destination
-    )
+    written = plot_method_agreement(comparisons, (FOSTER, ALFANO, CHAN, MONTE_CARLO), destination)
     assert written.read_bytes()[:8] == _PNG_MAGIC
 
     plotted = np.concatenate(

@@ -167,8 +167,7 @@ def format_dilution_summary(curve: DilutionCurve) -> str:
         f"nominal in-plane sigmas    {curve.nominal_sigma_x_m:.1f} m by "
         f"{curve.nominal_sigma_y_m:.1f} m",
         f"nominal Pc                 {curve.nominal_probability:.6e}",
-        f"peak Pc                    {curve.peak.probability:.6e} at scale "
-        f"{curve.peak.scale:.4f}",
+        f"peak Pc                    {curve.peak.probability:.6e} at scale {curve.peak.scale:.4f}",
         f"peak geometric mean sigma  {peak_sigma:.1f} m",
         f"analytic peak Pc           {curve.analytic_peak_probability:.6e} "
         f"(circular covariance reference)",
