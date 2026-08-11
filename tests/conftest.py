@@ -51,9 +51,7 @@ def regression_catalog() -> SyntheticCatalog:
 @pytest.fixture(scope="session")
 def regression_report(regression_catalog: SyntheticCatalog) -> ScreeningReport:
     """The pinned screening run."""
-    return run_screening(
-        regression_catalog, ScreeningConfig.for_threshold(REGRESSION_THRESHOLD_M)
-    )
+    return run_screening(regression_catalog, ScreeningConfig.for_threshold(REGRESSION_THRESHOLD_M))
 
 
 @pytest.fixture

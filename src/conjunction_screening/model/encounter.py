@@ -263,9 +263,7 @@ class PrincipalForm:
         the miss vector, dimensionless, and unlike the two components it does not
         depend on which principal axis was called first.
         """
-        return float(
-            np.hypot(self.mean_x_m / self.sigma_x_m, self.mean_y_m / self.sigma_y_m)
-        )
+        return float(np.hypot(self.mean_x_m / self.sigma_x_m, self.mean_y_m / self.sigma_y_m))
 
 
 def planar_encounter(

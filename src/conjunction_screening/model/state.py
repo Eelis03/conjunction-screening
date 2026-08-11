@@ -212,9 +212,7 @@ def solve_kepler_equation(
     # Below an eccentricity of 0.8 the mean anomaly is already a good starting
     # point; above it Newton can overshoot, and starting at the nearer apse is
     # the classical remedy.
-    ecc_anomaly = (
-        wrapped.copy() if eccentricity < 0.8 else np.where(wrapped >= 0.0, np.pi, -np.pi)
-    )
+    ecc_anomaly = wrapped.copy() if eccentricity < 0.8 else np.where(wrapped >= 0.0, np.pi, -np.pi)
     for _ in range(max_iterations):
         residual = ecc_anomaly - eccentricity * np.sin(ecc_anomaly) - wrapped
         derivative = 1.0 - eccentricity * np.cos(ecc_anomaly)
@@ -358,19 +356,15 @@ def element_state_jacobian(elements: KeplerianElements) -> Matrix:
     for column in range(6):
         perturbation = np.zeros(6, dtype=np.float64)
         perturbation[column] = steps[column]
-        forward = state_from_mean_elements(
-            base + perturbation, elements.gravitational_parameter
-        )
-        backward = state_from_mean_elements(
-            base - perturbation, elements.gravitational_parameter
-        )
+        forward = state_from_mean_elements(base + perturbation, elements.gravitational_parameter)
+        backward = state_from_mean_elements(base - perturbation, elements.gravitational_parameter)
         jacobian[:, column] = (forward - backward) / (2.0 * steps[column])
     return jacobian
 
 
-def elements_from_state(state: OrbitState, gravitational_parameter: float = MU_EARTH) -> (
-    KeplerianElements
-):
+def elements_from_state(
+    state: OrbitState, gravitational_parameter: float = MU_EARTH
+) -> KeplerianElements:
     """Convert an inertial Cartesian state to classical elements.
 
     Degenerate geometries are resolved by the usual conventions: for a circular

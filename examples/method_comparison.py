@@ -118,9 +118,7 @@ def main() -> None:
     print("A case is usable when it produced at least the method's minimum hit count;")
     print("below that the binomial estimate carries no useful precision.")
 
-    figure = plot_method_agreement(
-        comparisons, order, arguments.output / "method_agreement.png"
-    )
+    figure = plot_method_agreement(comparisons, order, arguments.output / "method_agreement.png")
     print()
     print(f"figure written  {figure}")
 

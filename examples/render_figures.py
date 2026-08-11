@@ -86,16 +86,11 @@ def main() -> None:
     reference = planar_encounter(
         miss_distance_m=100.0, sigma_x_m=500.0, sigma_y_m=500.0, hard_body_radius_m=10.0
     )
-    curve = dilution_curve(
-        reference, foster, minimum_scale=1e-2, maximum_scale=1e3, points=points
-    )
+    curve = dilution_curve(reference, foster, minimum_scale=1e-2, maximum_scale=1e3, points=points)
     dilution = plot_dilution_curve(
         curve,
         arguments.output / "dilution_curve.png",
-        title=(
-            "Probability of collision against covariance scale, "
-            "miss distance 100 m throughout"
-        ),
+        title=("Probability of collision against covariance scale, miss distance 100 m throughout"),
     )
 
     catalog = generate_catalog(

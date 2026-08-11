@@ -222,9 +222,7 @@ def _covariance_for(
     return ric_covariance_from_elements(elements, sigmas, state)
 
 
-def _background_object(
-    generator: np.random.Generator, object_id: str
-) -> CatalogObject:
+def _background_object(generator: np.random.Generator, object_id: str) -> CatalogObject:
     elements = KeplerianElements(
         semi_major_axis_m=EARTH_RADIUS_M + float(generator.uniform(400e3, 1_400e3)),
         eccentricity=float(generator.uniform(1.0e-4, 0.015)),
@@ -283,9 +281,7 @@ def _planted_object(
             object_id=object_id,
             state=at_epoch,
             radius_m=float(generator.uniform(0.5, 3.0)),
-            covariance_ric=_covariance_for(
-                generator, elements_from_state(at_epoch), at_epoch
-            ),
+            covariance_ric=_covariance_for(generator, elements_from_state(at_epoch), at_epoch),
         )
         truth = PlantedConjunction(
             object_id=object_id,

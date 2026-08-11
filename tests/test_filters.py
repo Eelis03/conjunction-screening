@@ -43,9 +43,7 @@ _TWO_PI = 2.0 * np.pi
 
 def _covered(arcs: tuple[tuple[float, float], ...], anomaly: float) -> bool:
     return any(
-        begin <= anomaly + _TWO_PI * turn <= end
-        for begin, end in arcs
-        for turn in (-1, 0, 1)
+        begin <= anomaly + _TWO_PI * turn <= end for begin, end in arcs for turn in (-1, 0, 1)
     )
 
 
@@ -74,9 +72,9 @@ def test_no_filter_rejects_a_real_conjunction(seed: int) -> None:
 
         third, windows = time_filter(primary, elements, _THRESHOLD_M, settings)
         assert third.passed, f"{truth.object_id}: {third.detail}"
-        assert any(
-            begin <= truth.tca_s <= end for begin, end in windows
-        ), f"{truth.object_id}: the true time of closest approach is outside every window"
+        assert any(begin <= truth.tca_s <= end for begin, end in windows), (
+            f"{truth.object_id}: the true time of closest approach is outside every window"
+        )
 
 
 def test_cascade_passes_every_planted_conjunction(conjunction_catalog: SyntheticCatalog) -> None:
@@ -230,9 +228,7 @@ def test_cascade_short_circuits_on_the_first_rejection() -> None:
     high = KeplerianElements(EARTH_RADIUS_M + 1_200e3, 0.0, 1.9, 2.0, 0.0, 3.0, MU_EARTH)
     from conjunction_screening.model.state import state_from_elements
 
-    result = run_cascade(
-        state_from_elements(low), state_from_elements(high), settings
-    )
+    result = run_cascade(state_from_elements(low), state_from_elements(high), settings)
     assert not result.passed
     assert result.rejected_by == PERIGEE_APOGEE_FILTER
     assert len(result.verdicts) == 1

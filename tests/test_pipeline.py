@@ -313,9 +313,7 @@ def test_method_comparison_tabulates_every_method() -> None:
         "circular": planar_encounter(200.0, 300.0, 300.0, 10.0),
         "elongated": planar_encounter(200.0, 1_500.0, 120.0, 10.0),
     }
-    comparisons = compare_methods(
-        encounters, (FosterMethod(), AlfanoMethod(), ChanMethod())
-    )
+    comparisons = compare_methods(encounters, (FosterMethod(), AlfanoMethod(), ChanMethod()))
     order = (FOSTER, ALFANO, CHAN)
     text = format_comparison_table(comparisons, order)
     for name in order:

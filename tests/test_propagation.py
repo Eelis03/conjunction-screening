@@ -63,9 +63,7 @@ def _scaled_transition(state: OrbitState, delta_time_s: float) -> tuple[np.ndarr
     time_scale = 1.0 / elements.mean_motion_rad_s
     transition = state_transition_matrix(state, delta_time_s)
     scale = np.diag([1.0, 1.0, 1.0, time_scale, time_scale, time_scale])
-    inverse = np.diag(
-        [1.0, 1.0, 1.0, 1.0 / time_scale, 1.0 / time_scale, 1.0 / time_scale]
-    )
+    inverse = np.diag([1.0, 1.0, 1.0, 1.0 / time_scale, 1.0 / time_scale, 1.0 / time_scale])
     return scale @ transition @ inverse, time_scale
 
 
