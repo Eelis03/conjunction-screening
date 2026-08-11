@@ -111,11 +111,36 @@ each term is one minus a partial sum of a Poisson series, which cancels catastro
 the ratio of hard body radius to covariance scale is small, and that ratio is small in every
 real conjunction.
 
+Patera, "General Method for Calculating Satellite Collision Probability", Journal of Guidance,
+Control, and Dynamics 24(4), 2001, DOI 10.2514/2.4771, converts the area integral into a
+contour integral around the boundary of the region with Green's theorem. In the plane scaled
+by the two principal standard deviations the density is isotropic and has a vector potential
+in closed form, `(1 - exp(-r^2 / 2)) / r^2` times the perpendicular of the radius vector
+measured from the miss point, so the probability becomes an integral in one variable along a
+closed curve. That integrand is periodic and analytic in the variable, which is the regime the
+trapezoidal rule converges geometrically in, so nothing adaptive is needed: doubling from 128
+nodes meets the 1e-11 tolerance at 256 on every case in the test suite. Patera agrees with
+Foster to 2.5e-15 relative over the eight comparison cases, the level Alfano reaches, and
+unlike Alfano it keeps that agreement once the region stops being a disc.
+
+One numerical point decides whether the contour method is usable at screening depths. Its
+kernel splits as `1 / r^2` minus `exp(-r^2 / 2) / r^2`, and the first part integrates to the
+winding number of the outline about the miss point, which is one when the miss vector lies
+inside the body and zero otherwise. Left inside the quadrature it cancels away: on a
+probability of 1e-234 the terms it contributes are of order one and the sum returns 5e-21,
+which is noise. Subtracted in closed form, what is left is the decaying part alone and the
+value is right. The subtracted form divides by zero when the miss point lies exactly on the
+outline, where the other form is well behaved, so both are kept and the one whose integrand
+has the smaller peak is used. That comparison needs no threshold: the two forms differ by a
+term that is known exactly, so the smaller integrand is by construction the one whose sum
+cancels less.
+
 The region being integrated over is a disc only when both objects are spheres. A hard body may
 be given as an ellipsoid instead, in which case the region is the shadow it casts along the
-relative velocity and the polar quadrature takes a radial limit that varies with the angle.
-Foster and Monte Carlo accept that region; Alfano and Chan reject it, for reasons recorded
-under closed limitations below.
+relative velocity: the polar quadrature takes a radial limit that varies with the angle, and
+the contour integral runs around an ellipse in place of a circle. Foster, Patera, and Monte
+Carlo accept that region; Alfano and Chan reject it, for reasons recorded under closed
+limitations below.
 
 The Monte Carlo estimator samples the three-dimensional relative position from the combined
 covariance and projects each draw onto the plane normal to the relative velocity, rather than
@@ -250,8 +275,9 @@ direction of approach. That is the whole content of the limitation.
 
 The probability integral then runs over that ellipse. Foster's polar quadrature needs one
 change: the upper limit of the radial integral becomes `R(theta)`, and the angle moves from
-the inner to the outer variable. Monte Carlo needs one change: the hit test becomes a
-quadratic form in the plane rather than a distance in three dimensions.
+the inner to the outer variable. Patera's contour integral needs one change: the curve it runs
+around becomes the ellipse. Monte Carlo needs one change: the hit test becomes a quadratic
+form in the plane rather than a distance in three dimensions.
 
 What it cost. Four things, none of them hidden.
 
@@ -260,10 +286,12 @@ expands a non-central chi-square tail about a circular region; in both derivatio
 enters before the density does, so neither extends by changing a limit. They raise on a
 non-circular cross section rather than substituting a disc of the same area, because a
 silently substituted disc would produce a number that looks like a cross check of the Foster
-result and is not one. The consequence is that the strongest validation available, two
-independent quadratures agreeing to 4.3e-16, exists only for spheres. For a non-spherical body
-the cross check is Foster against Monte Carlo, which is four binomial standard errors wide
-rather than at machine precision.
+result and is not one. Two of the five methods are therefore unavailable for a shaped body,
+and that is the cost. It is not a loss of cross validation: Patera's contour integral does not
+use the circle either, so it follows an elliptical outline by changing the curve rather than
+the formulation, and it agrees with Foster to 1.0e-15 relative on the elliptical cases in the
+test suite, the level the two disc methods reach on a disc. Monte Carlo stays the check that
+also covers the covariance square root and the projection, four binomial standard errors wide.
 
 The combined body is an outer approximation, so the probability it produces is an
 overestimate. The size of that is measured rather than asserted: for a 30 m by 3 m by 3 m body

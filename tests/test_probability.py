@@ -8,6 +8,10 @@ sum of those, 2e-11. The tests allow 1e-9, which leaves a factor of fifty for
 differences in the platform's exponential and error function implementations,
 each of which can differ by an ulp between operating systems.
 
+Patera's contour rule is asked for the same 1e-11 and is compared on the same
+band. It converges geometrically rather than at a fixed order, so a level that
+meets the threshold is usually several digits past it.
+
 Chan's series is exact only when the in-plane covariance is circular. Where it is
 circular the tolerance is again the quadrature tolerance; where it is not, the
 disagreement is the equal-area approximation error and is checked to be present
@@ -30,10 +34,12 @@ from conjunction_screening.algorithm.probability import (
     CHAN,
     FOSTER,
     MONTE_CARLO,
+    PATERA,
     AlfanoMethod,
     ChanMethod,
     FosterMethod,
     MonteCarloMethod,
+    PateraMethod,
     ProbabilityMethod,
 )
 from conjunction_screening.model.encounter import EncounterGeometry, planar_encounter
@@ -82,12 +88,103 @@ def test_foster_and_alfano_agree(case: tuple[str, float, float, float, float, fl
 
 
 @pytest.mark.parametrize("case", _CASES, ids=[case[0] for case in _CASES])
+def test_foster_and_patera_agree(case: tuple[str, float, float, float, float, float]) -> None:
+    """A third route to the same integral lands on the same answer.
+
+    Foster covers the region with an adaptive area quadrature. Patera never
+    enters the region at all: Green's theorem turns the mass inside it into a
+    contour integral around its boundary, evaluated with the trapezoidal rule on
+    a periodic integrand. The two share the principal axis reduction and nothing
+    else, so this is the second independent check of Foster and the first that
+    survives a non-circular outline.
+    """
+    encounter = _encounter(case)
+    foster = FosterMethod().probability(encounter)
+    patera = PateraMethod().probability(encounter)
+    assert foster.converged
+    assert patera.converged
+    assert patera.value == pytest.approx(foster.value, rel=_QUADRATURE_AGREEMENT)
+
+
+def test_patera_matches_the_closed_form_for_a_centred_disc() -> None:
+    """A disc centred on the density has a closed-form mass, and it is not a quadrature.
+
+    With a circular covariance and no miss distance the integral is the Rayleigh
+    distribution function, ``1 - exp(-R^2 / (2 s^2))``, in closed form. Checking
+    against it fixes the contour orientation, the area element, and the kernel
+    normalisation at once, without any other method being involved.
+    """
+    method = PateraMethod()
+    for sigma_m, radius_m in ((250.0, 10.0), (100.0, 90.0), (40.0, 400.0)):
+        encounter = planar_encounter(
+            miss_distance_m=0.0,
+            sigma_x_m=sigma_m,
+            sigma_y_m=sigma_m,
+            hard_body_radius_m=radius_m,
+        )
+        expected = -float(np.expm1(-0.5 * (radius_m / sigma_m) ** 2))
+        result = method.probability(encounter)
+        assert result.converged
+        assert result.value == pytest.approx(expected, rel=1e-13)
+
+
+def test_patera_resolves_a_probability_far_below_the_dismissal_threshold() -> None:
+    """The deep tail is where the two forms of the contour kernel differ.
+
+    This geometry is the shape of the faintest event a screening run produces: a
+    miss of eighty standard deviations across the tight in-plane direction, whose
+    probability is two hundred orders below one. Leaving the winding term inside
+    the quadrature there sums quantities of order one that must cancel to that
+    value, and returns 5e-21 rather than the answer, so a value agreeing with
+    Foster to several significant figures is evidence the subtraction is being
+    done in closed form.
+
+    Tolerance: 1e-6 relative. Foster's adaptive quadrature is itself working two
+    hundred orders below one here and does not hold the 1e-11 it reports at that
+    depth. What is being checked is agreement to several figures rather than a
+    disagreement by orders of magnitude.
+    """
+    encounter = planar_encounter(
+        miss_distance_m=3_000.0,
+        sigma_x_m=4_449.0,
+        sigma_y_m=35.8,
+        hard_body_radius_m=6.4,
+        orientation_rad=0.4,
+    )
+    foster = FosterMethod().probability(encounter)
+    patera = PateraMethod().probability(encounter)
+    assert patera.converged
+    assert 0.0 < patera.value < 1e-200
+    assert patera.value == pytest.approx(foster.value, rel=1e-6)
+
+
+def test_patera_reports_a_starved_node_count_as_not_converged() -> None:
+    """A contour resolved by eight points is not an answer, and it says so.
+
+    The outline here is large enough against the covariance that the integrand
+    varies by orders of magnitude around it, so eight and sixteen nodes cannot
+    agree to the requested tolerance and the refinement runs out of levels.
+    """
+    encounter = planar_encounter(
+        miss_distance_m=800.0, sigma_x_m=100.0, sigma_y_m=100.0, hard_body_radius_m=100.0
+    )
+    result = PateraMethod(initial_nodes=8, max_nodes=16).probability(encounter)
+    assert not result.converged
+    assert "did not converge" in result.detail
+
+
+@pytest.mark.parametrize("case", _CASES, ids=[case[0] for case in _CASES])
 def test_every_method_returns_a_probability(
     case: tuple[str, float, float, float, float, float],
 ) -> None:
     """All results lie in the unit interval and report their own accuracy."""
     encounter = _encounter(case)
-    methods: tuple[ProbabilityMethod, ...] = (FosterMethod(), AlfanoMethod(), ChanMethod())
+    methods: tuple[ProbabilityMethod, ...] = (
+        FosterMethod(),
+        PateraMethod(),
+        AlfanoMethod(),
+        ChanMethod(),
+    )
     for method in methods:
         result = method.probability(encounter)
         assert 0.0 <= result.value <= 1.0
@@ -233,6 +330,7 @@ def test_monte_carlo_reports_a_starved_estimate_as_not_converged() -> None:
 def test_methods_expose_their_names() -> None:
     """Every method reports the identifier used to key comparison tables."""
     assert FosterMethod().name == FOSTER
+    assert PateraMethod().name == PATERA
     assert AlfanoMethod().name == ALFANO
     assert ChanMethod().name == CHAN
     assert MonteCarloMethod().name == MONTE_CARLO

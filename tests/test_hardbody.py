@@ -30,6 +30,7 @@ from conjunction_screening.algorithm.probability import (
     ChanMethod,
     FosterMethod,
     MonteCarloMethod,
+    PateraMethod,
 )
 from conjunction_screening.model.encounter import (
     EncounterGeometry,
@@ -341,13 +342,59 @@ def test_an_elongated_cross_section_collects_more_mass_pointing_at_the_density()
     assert towards > across
 
 
-def test_monte_carlo_agrees_with_the_quadrature_over_an_ellipse() -> None:
-    """The only independent check available once Alfano and Chan are out.
+def test_patera_agrees_with_the_quadrature_over_an_ellipse() -> None:
+    """The analytic cross check that survives the shape change.
 
-    Foster and Alfano cross validate each other on a disc, and neither of the two
-    series methods extends to an elliptical outline, so the elliptical path is
-    checked against sampling instead. Tolerance: four binomial standard errors
-    computed from the estimate itself.
+    Alfano and Chan use the circle before the density enters, so neither extends
+    to an elliptical outline. Patera's contour integral never uses it: the region
+    appears only as the curve bounding it, so an ellipse costs a different curve
+    and not a different formulation. That restores a second analytic evaluation
+    for the shaped body, at the same tolerance the disc case is checked to rather
+    than at the width of a sampling error.
+    """
+    method = FosterMethod()
+    contour = PateraMethod()
+    base = planar_encounter(
+        miss_distance_m=150.0, sigma_x_m=300.0, sigma_y_m=200.0, hard_body_radius_m=10.0
+    )
+    for major, minor, orientation in ((20.0, 5.0, 0.3), (40.0, 2.5, 0.0), (12.0, 8.0, 1.2)):
+        encounter = base.with_cross_section(CrossSection.ellipse(major, minor, orientation))
+        area = method.probability(encounter)
+        boundary = contour.probability(encounter)
+        assert area.converged
+        assert boundary.converged
+        assert boundary.value == pytest.approx(area.value, rel=_QUADRATURE_AGREEMENT)
+
+
+def test_patera_reads_an_elliptical_outline_as_the_ellipse_and_not_its_area() -> None:
+    """Two outlines of equal area pointed differently give different answers.
+
+    An equal-area disc substitution, which is what Chan would have to make, cannot
+    tell these two apart. The contour method separates them because the curve it
+    integrates around is the outline itself, and the ordering it produces is the
+    one the geometry requires: the outline reaching towards the density peak
+    collects more mass.
+    """
+    method = PateraMethod()
+    base = planar_encounter(
+        miss_distance_m=400.0, sigma_x_m=300.0, sigma_y_m=300.0, hard_body_radius_m=10.0
+    )
+    towards = method.probability(base.with_cross_section(CrossSection.ellipse(40.0, 2.5)))
+    across = method.probability(
+        base.with_cross_section(CrossSection.ellipse(40.0, 2.5, 0.5 * np.pi))
+    )
+    disc = method.probability(base.with_cross_section(CrossSection.disc(10.0)))
+    assert towards.value > disc.value > across.value
+
+
+def test_monte_carlo_agrees_with_the_quadrature_over_an_ellipse() -> None:
+    """A check of the elliptical path that goes through the plane construction too.
+
+    Foster and Patera cross validate each other on the outline analytically, but
+    both start from the same principal axis reduction of an encounter that is
+    already planar. Sampling in three dimensions and projecting covers the
+    covariance square root and the projection as well. Tolerance: four binomial
+    standard errors computed from the estimate itself.
     """
     encounter = planar_encounter(
         miss_distance_m=150.0, sigma_x_m=300.0, sigma_y_m=200.0, hard_body_radius_m=10.0
